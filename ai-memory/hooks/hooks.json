@@ -1,0 +1,63 @@
+{
+    "description": "ai-memory hooks: inject memory context at startup, enqueue turns at stop, surface memories, dedup check",
+    "hooks": {
+        "SessionStart": [
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/startup.sh\"",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.sh\"",
+                        "timeout": 5
+                    }
+                ]
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/recall.sh\"",
+                        "timeout": 2
+                    }
+                ]
+            }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "mcp__ai-memory__save_memory",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dedup-check.sh\"",
+                        "timeout": 3
+                    }
+                ]
+            }
+        ],
+        "SessionEnd": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-end.sh\"",
+                        "timeout": 3
+                    }
+                ]
+            }
+        ]
+    }
+}

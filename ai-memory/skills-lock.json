@@ -1,0 +1,10 @@
+{
+    "version": 1,
+    "skills": {
+        "solidjs": {
+            "source": "suryavirkapur/skills",
+            "sourceType": "github",
+            "computedHash": "6195dd1cb5df073c6c835e3db3f6828541bcee6753a3c996473d934b80f1ebfa"
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "name": "ai-memory",
+    "version": "0.1.0",
+    "description": "Persistent memory across Claude Code sessions",
+    "author": {
+        "name": "alonso"
+    },
+    "license": "MIT",
+    "repository": "https://github.com/damusix/ai-memory",
+    "mcpServers": "./.mcp.json"
+}

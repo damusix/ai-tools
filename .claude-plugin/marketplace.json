@@ -1,0 +1,17 @@
+{
+    "name": "alonso-network",
+    "owner": {
+        "name": "Danilo Alonso"
+    },
+    "metadata": {
+        "description": "Local plugins by Danilo Alonso"
+    },
+    "plugins": [
+        {
+            "name": "ai-memory",
+            "version": "0.1.0",
+            "source": "./ai-memory",
+            "description": "Persistent memory across Claude Code sessions"
+        }
+    ]
+}

@@ -1,0 +1,81 @@
+import { Show, For, type Component } from 'solid-js';
+import { type Memory, shortPath } from '../App';
+import Icon from './Icon';
+
+const fmtDate = (d: string) => (d ? new Date(d).toLocaleString() : '');
+
+const domainIcons: Record<string, string> = {
+    frontend: 'monitor', backend: 'server', data: 'database',
+    api: 'globe', design: 'palette', security: 'shield',
+    testing: 'test-tube', tooling: 'wrench', devops: 'git-branch',
+};
+
+const categoryIcons: Record<string, string> = {
+    decision: 'gavel', pattern: 'repeat', preference: 'sliders',
+    fact: 'bookmark', solution: 'puzzle',
+};
+
+export const MemoryCard: Component<{
+    memory: Memory;
+    onDelete: (id: number) => void;
+    animation?: string;
+    widthClass?: string;
+}> = (props) => {
+    const m = props.memory;
+    const width = () => props.widthClass || 'w-[calc(33.333%-11px)] min-w-[280px]';
+    return (
+        <div class={`${width()} flex flex-col rounded-lg border border-sky-400/10 bg-sky-400/[0.03] p-4 hover:border-sky-400/20 transition-colors ${props.animation || ''}`}>
+            <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-sky-400/10 text-sky-300/80 flex items-center gap-1">
+                        <Icon name={categoryIcons[m.category] || 'bookmark'} size={11} />
+                        {m.category}
+                    </span>
+                    <Show when={m.domain}>
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-400/10 text-emerald-300/80 flex items-center gap-1">
+                            <Icon name={domainIcons[m.domain!] || 'folder'} size={11} />
+                            {m.domain}
+                        </span>
+                    </Show>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-amber-400/70 text-xs flex items-center gap-0.5">
+                        <For each={Array.from({ length: 5 })}>
+                            {(_, i) => (
+                                <Icon name="star" size={11} class={i() < m.importance ? 'text-amber-400/70' : 'text-neutral-700'} />
+                            )}
+                        </For>
+                    </span>
+                    <button
+                        onClick={() => props.onDelete(m.id)}
+                        class="text-neutral-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded hover:bg-red-400/10"
+                    >
+                        <Icon name="x" size={12} />
+                    </button>
+                </div>
+            </div>
+
+            <p class="text-sm text-neutral-300 leading-relaxed flex-1 overflow-y-auto max-h-40 break-words">{m.content}</p>
+
+            <div class="mt-auto pt-3">
+                <Show when={m.tags}>
+                    <div class="flex flex-wrap gap-1.5 mb-2">
+                        <For each={m.tags.split(',').filter(Boolean)}>
+                            {(tag) => (
+                                <span class="px-1.5 py-0.5 rounded text-[10px] bg-sky-400/5 text-neutral-500 flex items-center gap-0.5">
+                                    <Icon name="tag" size={9} />
+                                    {tag.trim()}
+                                </span>
+                            )}
+                        </For>
+                    </div>
+                </Show>
+
+                <div class="flex items-center justify-between text-[10px] text-neutral-600">
+                    <span>#{m.id} · {shortPath(m.project_path)}</span>
+                    <span>{fmtDate(m.created_at)}</span>
+                </div>
+            </div>
+        </div>
+    );
+};

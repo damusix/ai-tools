@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ES2022",
+        "moduleResolution": "bundler",
+        "esModuleInterop": true,
+        "strict": true,
+        "outDir": "dist",
+        "rootDir": "src",
+        "declaration": true,
+        "jsx": "preserve",
+        "jsxImportSource": "solid-js",
+        "skipLibCheck": true
+    },
+    "include": ["src"],
+    "exclude": ["src/ui"]
+}

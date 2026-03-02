@@ -1,0 +1,1 @@
+Cleanup removes stale and redundant data. It deletes processed observations older than 14 days, removes observations that have been skipped 3 or more times during synthesis, and deduplicates memories with very similar content. You can run cleanup manually, or it runs automatically as part of the background worker cycle.

@@ -1,0 +1,1 @@
+The logs viewer shows the ai-memory server's activity log. You'll see entries for observation extraction, memory synthesis, cleanup runs, and any errors. Use auto-refresh to watch processing in real-time. The truncate button permanently deletes the log file if it grows too large.

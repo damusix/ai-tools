@@ -1,0 +1,1 @@
+Domains categorize memories by area of concern — frontend, backend, api, data, design, security, testing, tooling, devops, and more. Domains are automatically assigned during memory synthesis based on the content. In the main panel, memories are grouped by domain first, then by category within each domain. You can collapse domain sections to focus on what matters.

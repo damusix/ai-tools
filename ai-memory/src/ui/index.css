@@ -1,0 +1,77 @@
+@import 'tailwindcss';
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseHighlight {
+    0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(56, 189, 248, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out both;
+}
+
+.animate-pulse-highlight {
+    animation: pulseHighlight 0.6s ease-out 2;
+}
+
+.terminal-bg { background: #0a0a0a; }
+.terminal-text { color: #c9d1d9; }
+.terminal-border { border-color: #1e1e1e; }
+.log-info { color: #58a6ff; }
+.log-warn { color: #d29922; }
+.log-error { color: #f85149; }
+.log-section { color: #8b949e; }
+.log-section-server { color: #c084fc; }
+.log-section-worker { color: #fb923c; }
+.log-section-api { color: #22d3ee; }
+.log-section-mcp { color: #34d399; }
+.log-section-context { color: #a78bfa; }
+.log-time { color: #484f58; }
+.log-message { color: #d1d5db; }
+.log-line-number { color: #484f58; }
+
+.terminal-lines {
+    counter-reset: line-number;
+}
+.terminal-line {
+    counter-increment: line-number;
+    position: relative;
+    padding-left: 5.5ch;
+    margin-bottom: 2px;
+}
+.terminal-line::before {
+    content: counter(line-number);
+    position: absolute;
+    left: 0;
+    width: 4ch;
+    text-align: right;
+    color: #484f58;
+    user-select: none;
+}
+.terminal-line::after {
+    content: '';
+    position: absolute;
+    left: 4.5ch;
+    top: 0;
+    bottom: 0;
+    border-left: 1px solid #1e1e1e;
+}
+
+/* Help drawer prose typography */
+.help-prose h1 { font-size: 1.125rem; font-weight: 700; color: #e5e7eb; margin-top: 0; margin-bottom: 0.75rem; }
+.help-prose h2 { font-size: 0.95rem; font-weight: 600; color: #d1d5db; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.help-prose h3 { font-size: 0.85rem; font-weight: 600; color: #d1d5db; margin-top: 1.25rem; margin-bottom: 0.4rem; }
+.help-prose p { margin-top: 0.5rem; margin-bottom: 0.5rem; line-height: 1.6; }
+.help-prose ul, .help-prose ol { margin-top: 0.4rem; margin-bottom: 0.4rem; padding-left: 1.25rem; }
+.help-prose li { margin-top: 0.2rem; margin-bottom: 0.2rem; line-height: 1.5; }
+.help-prose ul { list-style-type: disc; }
+.help-prose ol { list-style-type: decimal; }
+.help-prose strong { color: #e5e7eb; font-weight: 600; }
+.help-prose a { color: #38bdf8; text-decoration: underline; text-underline-offset: 2px; }
+.help-prose code { background: rgba(255,255,255,0.06); padding: 0.15em 0.35em; border-radius: 3px; font-size: 0.85em; }
+.help-prose hr { border-color: #333; margin: 1rem 0; }

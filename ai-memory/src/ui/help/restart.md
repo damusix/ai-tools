@@ -1,0 +1,1 @@
+Restart stops and restarts the ai-memory server process. This is useful if the server becomes unresponsive or if you've made configuration changes. The dashboard will automatically reconnect once the server is back up.
