@@ -161,7 +161,7 @@ export function createApp(): Hono {
                 .toLowerCase()
                 .replace(/[^\w\s]/g, '')
                 .split(/\s+/)
-                .filter((w) => w.length > 3 && !STOP_WORDS[w]);
+                .filter((w) => w.length > 0 && !STOP_WORDS[w]);
 
             const unique = [...new Set(words)].slice(0, 5);
             if (unique.length === 0) return c.json({ memories: [] });

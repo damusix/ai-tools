@@ -41,11 +41,11 @@ The injected context fits within ~1,000 tokens. Each domain gets at least its mo
 
 All state lives in `~/.ai-memory/`:
 
-| File | Purpose |
-|------|---------|
-| `memory.db` | SQLite database (WAL mode) with all observations, memories, queues, and full-text indexes |
-| `server.log` | Server and worker logs |
-| `ai-memory.pid` | PID file for the running server process |
+| File            | Purpose                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `memory.db`     | SQLite database (WAL mode) with all observations, memories, queues, and full-text indexes |
+| `server.log`    | Server and worker logs                                                                    |
+| `ai-memory.pid` | PID file for the running server process                                                   |
 
 No cloud services, no external APIs for storage. The only network calls are to the Anthropic API (via Claude Agent SDK) for observation extraction, memory synthesis, and cleanup — the same API your Claude Code session already uses.
 
@@ -63,20 +63,20 @@ Synthesized, categorized summaries derived from observations. Each memory has:
 - **Content** — 1-3 sentence summary
 - **Category** — what kind of knowledge it represents:
 
-| Category | Meaning |
-|----------|---------|
-| `decision` | A choice made between options, with rationale |
-| `pattern` | A recurring approach established for the codebase |
-| `preference` | A user style or workflow preference |
-| `fact` | A discovered truth about the system or environment |
-| `solution` | A working fix for a non-obvious problem |
+| Category     | Meaning                                            |
+| ------------ | -------------------------------------------------- |
+| `decision`   | A choice made between options, with rationale      |
+| `pattern`    | A recurring approach established for the codebase  |
+| `preference` | A user style or workflow preference                |
+| `fact`       | A discovered truth about the system or environment |
+| `solution`   | A working fix for a non-obvious problem            |
 
 - **Importance** — 1 to 5 scale:
-    - 1 = trivia
-    - 2 = useful context
-    - 3 = normal (default)
-    - 4 = important — confusion if forgotten
-    - 5 = critical — bugs or hours wasted if forgotten
+  - 1 = trivia
+  - 2 = useful context
+  - 3 = normal (default)
+  - 4 = important — confusion if forgotten
+  - 5 = critical — bugs or hours wasted if forgotten
 - **Domain** — which area of development the memory belongs to (see [Domains](#domains))
 - **Tags** — freeform labels for searchability (e.g., `routing`, `postgres`, `auth`)
 
@@ -108,17 +108,17 @@ Find and delete memories. Optionally provide a search term to filter. Presents r
 
 These tools are available to Claude during your session:
 
-| Tool | What it does |
-|------|-------------|
-| `save_memory` | Create a memory with content, category, importance, tags, and domain |
-| `search_memories` | Full-text search across memories |
-| `search_observations` | Full-text search across observations |
-| `list_memories` | Browse memories with optional filters (tag, category, domain) |
-| `delete_memory` | Remove a memory by ID |
-| `list_tags` | See all tags and how many memories use each |
-| `list_domains` | See all domains and their memory counts |
-| `list_projects` | See all tracked projects |
-| `transfer_project` | Move memories and observations from one project path to another |
+| Tool                  | What it does                                                         |
+| --------------------- | -------------------------------------------------------------------- |
+| `save_memory`         | Create a memory with content, category, importance, tags, and domain |
+| `search_memories`     | Full-text search across memories                                     |
+| `search_observations` | Full-text search across observations                                 |
+| `list_memories`       | Browse memories with optional filters (tag, category, domain)        |
+| `delete_memory`       | Remove a memory by ID                                                |
+| `list_tags`           | See all tags and how many memories use each                          |
+| `list_domains`        | See all domains and their memory counts                              |
+| `list_projects`       | See all tracked projects                                             |
+| `transfer_project`    | Move memories and observations from one project path to another      |
 
 ### Full-Text Search
 
@@ -137,9 +137,11 @@ Search uses SQLite FTS5. Supported syntax:
 
 1. **Session starts** — the `SessionStart` hook ensures the ai-memory server is running (starts it if not), then fetches the memory context for the current project and injects it as a system message.
 
-2. **You work** — Claude has your project context from previous sessions. You can also use `/remember`, `/forget`, or the MCP tools directly.
+2. **You work** — Claude has your project context from previous sessions. You can also use `/remember`, `/forget`, or the MCP tools directly. Two hooks run transparently during your session:
+   - **Per-prompt recall** (`UserPromptSubmit`) — on every message you send, ai-memory searches for memories relevant to your prompt and injects them as additional context. This means Claude surfaces the right memories at the right time, not just at session start.
+   - **Duplicate detection** (`PreToolUse` on `save_memory`) — before saving a new memory, ai-memory checks for similar existing memories and warns Claude if duplicates exist.
 
-3. **Session ends** — the `Stop` hook sends the conversation to the server's `/enqueue` endpoint for async processing.
+3. **Session ends** — the `Stop` and `SessionEnd` hooks send the conversation to the server's `/enqueue` endpoint for async processing.
 
 ### Background Worker
 
@@ -232,7 +234,7 @@ src/
   prompts/        — LLM prompt templates
   ui/             — SolidJS dashboard source
 hooks/
-  hooks.json      — Hook configuration (SessionStart, Stop)
+  hooks.json      — Hook configuration (SessionStart, Stop, UserPromptSubmit, PreToolUse, SessionEnd)
   scripts/        — Shell scripts for hooks
 commands/         — Slash command definitions (/remember, /forget)
 skills/           — Skill definitions (memory-management)

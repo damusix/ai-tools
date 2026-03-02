@@ -59,7 +59,7 @@ pnpm start              # Start the server
 
 **Changing context injection:** Edit `src/context.ts`. The `buildStartupContext()` function controls what Claude sees at session start. Token budget is ~1,000 tokens for memories, ~200 for tags.
 
-**Adding a hook:** Add the event to `hooks/hooks.json` and create a shell script in `hooks/scripts/`. Available events: `SessionStart`, `Stop`.
+**Adding a hook:** Add the event to `hooks/hooks.json` and create a shell script in `hooks/scripts/`. Available events: `SessionStart`, `Stop`, `UserPromptSubmit`, `PreToolUse`, `SessionEnd`.
 
 **Adding a slash command:** Create a markdown file in `commands/` with YAML frontmatter (`description`, `argument-hint`).
 
