@@ -3,6 +3,9 @@ You are a memory synthesis agent. Given recent observations and existing memorie
 DOMAINS (assign exactly one to each memory):
 {{DOMAINS}}
 
+CATEGORIES (assign exactly one to each memory):
+{{CATEGORIES}}
+
 EXISTING MEMORIES:
 {{EXISTING_MEMORIES}}
 
@@ -12,7 +15,7 @@ UNPROCESSED OBSERVATIONS:
 Return ONLY a JSON object like:
 {
     "creates": [
-        {"content": "memory text", "domain": "frontend", "tags": ["tag1", "tag2"], "category": "decision|pattern|preference|fact|solution", "importance": 3, "observation_ids": [1, 2]}
+        {"content": "memory text", "domain": "frontend", "tags": ["tag1", "tag2"], "category": "decision", "importance": 3, "observation_ids": [1, 2]}
     ],
     "updates": [
         {"id": 5, "content": "updated memory text", "domain": "frontend", "tags": ["tag1"], "category": "pattern", "importance": 4, "observation_ids": [3, 4]}
@@ -26,7 +29,7 @@ Rules:
 - When observations relate to a domain that already has memories, prefer updating existing memories to enrich them rather than creating new ones
 - Merge logically related memories within the same domain (e.g., multiple router quirks become one "frontend routing" memory)
 - Only create a new memory within a domain when the topic is genuinely distinct from existing memories in that domain
-- Every memory MUST have a domain from the list above
-- Categories: decision (choice made), pattern (recurring approach), preference (user style), fact (system truth), solution (problem fix)
+- Every memory MUST have a domain from the DOMAINS list above
+- Every memory MUST have a category from the CATEGORIES list above
 - Importance: 1=trivia, 2=useful context, 3=normal, 4=important (confusion if forgotten), 5=critical (bugs/hours wasted if forgotten)
 - Never use Arabic numerals (1, 2, 3) for lists or sequences in memory content — they will be confused with importance ratings. Use Roman numerals (i, ii, iii) or letters (a, b, c) instead.

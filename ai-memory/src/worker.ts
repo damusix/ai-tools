@@ -18,9 +18,11 @@ import {
     getDb,
     listProjects,
     listDomainsRaw,
+    listCategoriesRaw,
     purgeStaleObservations,
     incrementSkippedCount,
     deleteOverSkippedObservations,
+    getProjectsWithStaleObservations,
 } from './db.js';
 import { broadcast } from './sse.js';
 import { log, error as logError } from './logger.js';
@@ -127,6 +129,16 @@ export async function runBackfill(): Promise<{ processed: number; split: number 
     }
 }
 
+function checkStaleObservations(): void {
+    const timeoutMs = getConfig().worker.synthesisTimeoutMs;
+    if (timeoutMs === 0) return;
+    const staleProjects = getProjectsWithStaleObservations(timeoutMs);
+    for (const projectId of staleProjects) {
+        enqueueMemorySynthesis(projectId);
+        log('worker', `Enqueued stale synthesis for project ${projectId} (timeout: ${timeoutMs}ms)`);
+    }
+}
+
 export function startWorker(): void {
     log('worker', `Starting queue worker (poll every ${getConfig().worker.pollIntervalMs}ms)`);
 
@@ -149,6 +161,7 @@ export function startWorker(): void {
         if (processing) return;
         processing = true;
         try {
+            checkStaleObservations();
             await processObservationQueue();
             const synthesized = await processMemoryQueue();
             if (synthesized) runCleanup();
@@ -319,9 +332,13 @@ async function cleanupWithLLM(projectId: number): Promise<{ observations: number
     try {
         const { query } = await import('@anthropic-ai/claude-agent-sdk');
 
+        const categories = listCategoriesRaw();
+        const categoriesText = categories.map(c => `- ${c.name}: ${c.description}`).join('\n');
+
         const prompt = loadPrompt('cleanup', {
             OBSERVATIONS: JSON.stringify(observations, null, 2),
             MEMORIES: JSON.stringify(memories, null, 2),
+            CATEGORIES: categoriesText,
         });
 
         let result = '';
@@ -399,11 +416,14 @@ async function synthesizeMemories(
 
         const domains = listDomainsRaw();
         const domainsText = domains.map(d => `- ${d.name}: ${d.description}`).join('\n');
+        const categories = listCategoriesRaw();
+        const categoriesText = categories.map(c => `- ${c.name}: ${c.description}`).join('\n');
 
         const prompt = loadPrompt('synthesize-memories', {
             EXISTING_MEMORIES: JSON.stringify(existingMemories.slice(0, getConfig().worker.synthesisTopSlice), null, 2),
             OBSERVATIONS: JSON.stringify(observations, null, 2),
             DOMAINS: domainsText,
+            CATEGORIES: categoriesText,
         });
 
         let result = '';

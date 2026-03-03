@@ -8,12 +8,8 @@ Delete items that are:
 - Trivial: not worth remembering long-term
 - Domain-redundant: multiple memories in the same domain covering overlapping topics (keep the stronger one)
 
-Keep items that are:
-- Decisions: architectural choices, technology selections, design rationale
-- Patterns: recurring approaches, conventions, workflows
-- Preferences: user style, tool choices, communication preferences
-- Solutions: bug fixes, workarounds, debugging insights
-- Facts: important system truths, configurations, constraints
+Keep items that match any of these categories:
+{{CATEGORIES}}
 
 OBSERVATIONS:
 {{OBSERVATIONS}}
