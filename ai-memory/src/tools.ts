@@ -10,6 +10,7 @@ import {
     listProjects,
     insertMemory,
     listDomains,
+    listCategories,
     transferProject,
 } from './db.js';
 import { log } from './logger.js';
@@ -27,7 +28,7 @@ export function createMcpServer(): McpServer {
             inputSchema: z.object({
                 content: z.string().describe('The memory content'),
                 tags: z.array(z.string()).default([]).describe('Tags for categorization'),
-                category: z.enum(['decision', 'pattern', 'preference', 'fact', 'solution']).default('fact'),
+                category: z.string().default('fact').describe('Memory category. Use list_categories to see options.'),
                 importance: z.number().min(1).max(5).default(3).describe('1=low, 5=critical'),
                 project: z
                     .string()
@@ -56,7 +57,7 @@ export function createMcpServer(): McpServer {
                 query: z.string().describe('Search query'),
                 tags: z.array(z.string()).optional().describe('Filter by tags'),
                 project: z.string().optional().describe('Scope to project path'),
-                category: z.enum(['decision', 'pattern', 'preference', 'fact', 'solution']).optional(),
+                category: z.string().optional().describe('Filter by category. Use list_categories to see options.'),
                 limit: z.number().default(20),
                 domain: z.string().optional().describe('Filter by domain'),
             }),
@@ -99,7 +100,7 @@ export function createMcpServer(): McpServer {
             inputSchema: z.object({
                 project: z.string().optional(),
                 tag: z.string().optional(),
-                category: z.enum(['decision', 'pattern', 'preference', 'fact', 'solution']).optional(),
+                category: z.string().optional().describe('Filter by category. Use list_categories to see options.'),
                 limit: z.number().default(50),
                 domain: z.string().optional().describe('Filter by domain'),
             }),
@@ -160,6 +161,23 @@ export function createMcpServer(): McpServer {
             const domains = listDomains(projectPath);
             return {
                 content: [{ type: 'text', text: JSON.stringify(domains, null, 2) }],
+            };
+        },
+    );
+
+    server.registerTool(
+        'list_categories',
+        {
+            description: 'List all memory categories with usage counts.',
+            inputSchema: z.object({
+                project: z.string().optional().describe('Project path'),
+            }),
+        },
+        async ({ project }) => {
+            const projectPath = project || process.env.PWD || undefined;
+            const categories = listCategories(projectPath);
+            return {
+                content: [{ type: 'text', text: JSON.stringify(categories, null, 2) }],
             };
         },
     );
