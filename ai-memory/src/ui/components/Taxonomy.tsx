@@ -1,64 +1,152 @@
-import { type Component, createSignal, createEffect, For, Show } from 'solid-js';
+import { type Component, createSignal, createEffect, createMemo, For, Show, onCleanup } from 'solid-js';
 import Overlay from './Overlay';
+import FA_CATEGORIES from '../fa-icons-data';
 
 type TaxonomyItem = { name: string; description: string; icon: string; count: number };
 
-const FA_ICONS = [
-    'fa-bookmark', 'fa-brain', 'fa-bug', 'fa-bullseye', 'fa-chart-line', 'fa-chart-pie',
-    'fa-circle-check', 'fa-circle-info', 'fa-circle-nodes', 'fa-clipboard', 'fa-clock',
-    'fa-cloud', 'fa-code', 'fa-code-branch', 'fa-cog', 'fa-compass', 'fa-cubes',
-    'fa-database', 'fa-display', 'fa-download', 'fa-envelope', 'fa-eye', 'fa-file',
-    'fa-file-code', 'fa-file-lines', 'fa-filter', 'fa-fire', 'fa-flag', 'fa-flask',
-    'fa-folder', 'fa-folder-open', 'fa-gauge-high', 'fa-gavel', 'fa-gear', 'fa-globe',
-    'fa-graduation-cap', 'fa-hammer', 'fa-handshake', 'fa-hard-drive', 'fa-hashtag',
-    'fa-heart', 'fa-house', 'fa-image', 'fa-inbox', 'fa-industry', 'fa-key',
-    'fa-keyboard', 'fa-layer-group', 'fa-leaf', 'fa-lightbulb', 'fa-link', 'fa-list',
-    'fa-lock', 'fa-magnifying-glass', 'fa-map', 'fa-memory', 'fa-message',
-    'fa-microchip', 'fa-mobile', 'fa-moon', 'fa-network-wired', 'fa-paintbrush',
-    'fa-palette', 'fa-paperclip', 'fa-pen', 'fa-people-group', 'fa-plug',
-    'fa-puzzle-piece', 'fa-receipt', 'fa-repeat', 'fa-robot', 'fa-rocket',
-    'fa-ruler', 'fa-scale-balanced', 'fa-screwdriver-wrench', 'fa-server',
-    'fa-shield-halved', 'fa-sitemap', 'fa-sliders', 'fa-star', 'fa-sun',
-    'fa-table', 'fa-tag', 'fa-tags', 'fa-terminal', 'fa-thumbs-up', 'fa-toolbox',
-    'fa-trash', 'fa-tree', 'fa-trophy', 'fa-truck', 'fa-universal-access',
-    'fa-unlock', 'fa-upload', 'fa-user', 'fa-user-shield', 'fa-users', 'fa-vial',
-    'fa-wand-magic-sparkles', 'fa-warning', 'fa-wifi', 'fa-wrench', 'fa-xmark',
-];
+// Strip fa- prefix for storage format conversion
+const toFaClass = (name: string) => name.startsWith('fa-') ? name : `fa-${name}`;
+const fromFaClass = (cls: string) => cls.startsWith('fa-') ? cls.slice(3) : cls;
+
+const MAX_GRID_ICONS = 200;
 
 const IconPicker: Component<{ value: string; onChange: (icon: string) => void }> = (props) => {
+    const [open, setOpen] = createSignal(false);
     const [search, setSearch] = createSignal('');
-    const filtered = () => {
+    const [activeCategory, setActiveCategory] = createSignal<string | null>(null);
+    let containerRef: HTMLDivElement | undefined;
+
+    // Close on outside click
+    createEffect(() => {
+        if (!open()) return;
+        const handler = (e: MouseEvent) => {
+            if (containerRef && !containerRef.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        onCleanup(() => document.removeEventListener('mousedown', handler));
+    });
+
+    const visibleIcons = createMemo(() => {
         const q = search().toLowerCase();
-        return q ? FA_ICONS.filter(i => i.includes(q)) : FA_ICONS;
+        const cat = activeCategory();
+
+        if (q) {
+            // Search across all categories, deduplicate
+            const seen: Record<string, true> = {};
+            const results: string[] = [];
+            for (const c of FA_CATEGORIES) {
+                for (const icon of c.icons) {
+                    if (icon.includes(q) && !seen[icon]) {
+                        seen[icon] = true;
+                        results.push(icon);
+                        if (results.length >= MAX_GRID_ICONS) return results;
+                    }
+                }
+            }
+            return results;
+        }
+
+        if (cat) {
+            const found = FA_CATEGORIES.find(c => c.key === cat);
+            return found ? found.icons.slice(0, MAX_GRID_ICONS) : [];
+        }
+
+        // Default: show first category
+        return FA_CATEGORIES[0]?.icons.slice(0, MAX_GRID_ICONS) || [];
+    });
+
+    const handleSelect = (iconName: string) => {
+        props.onChange(toFaClass(iconName));
+        setOpen(false);
+        setSearch('');
     };
 
+    const currentRaw = () => fromFaClass(props.value);
+
     return (
-        <div class="space-y-2">
-            <input
-                type="text"
-                placeholder="Search icons..."
-                value={search()}
-                onInput={(e) => setSearch(e.currentTarget.value)}
-                class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-sky-500 focus:outline-none"
-            />
-            <div class="grid grid-cols-10 gap-1 max-h-[160px] overflow-y-auto p-1 rounded bg-neutral-800 border border-neutral-700">
-                <For each={filtered()}>
-                    {(icon) => (
-                        <button
-                            type="button"
-                            onClick={() => props.onChange(icon)}
-                            class={`w-7 h-7 flex items-center justify-center rounded text-sm transition-colors ${
-                                props.value === icon
-                                    ? 'bg-sky-600 text-white'
-                                    : 'hover:bg-neutral-700 text-neutral-400'
-                            }`}
-                            title={icon}
-                        >
-                            <i class={`fa-solid ${icon}`} />
-                        </button>
-                    )}
-                </For>
-            </div>
+        <div class="relative" ref={containerRef}>
+            {/* Trigger button */}
+            <button
+                type="button"
+                onClick={() => setOpen(!open())}
+                class="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 hover:border-neutral-600 transition-colors w-full"
+            >
+                <i class={`fa-solid ${props.value}`} style="font-size: 14px" />
+                <span class="flex-1 text-left text-neutral-400 truncate">{props.value}</span>
+                <i class={`fa-solid fa-chevron-${open() ? 'up' : 'down'}`} style="font-size: 10px; color: #666" />
+            </button>
+
+            {/* Dropdown */}
+            <Show when={open()}>
+                <div class="absolute z-50 left-0 right-0 mt-1 rounded-lg bg-neutral-900 border border-neutral-700 shadow-xl overflow-hidden" style="width: 460px">
+                    {/* Search */}
+                    <div class="p-2 border-b border-neutral-700/50">
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" style="font-size: 10px" />
+                            <input
+                                type="text"
+                                placeholder="Search all icons..."
+                                value={search()}
+                                onInput={(e) => { setSearch(e.currentTarget.value); if (e.currentTarget.value) setActiveCategory(null); }}
+                                class="w-full pl-7 pr-2 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-sky-500 focus:outline-none"
+                                autofocus
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex" style="height: 280px">
+                        {/* Category sidebar */}
+                        <Show when={!search()}>
+                            <div class="w-[140px] border-r border-neutral-700/50 overflow-y-auto shrink-0">
+                                <For each={FA_CATEGORIES}>
+                                    {(cat) => (
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveCategory(cat.key)}
+                                            class={`w-full text-left px-2.5 py-1.5 text-[10px] transition-colors truncate ${
+                                                (activeCategory() || FA_CATEGORIES[0]?.key) === cat.key
+                                                    ? 'bg-sky-600/20 text-sky-400 font-medium'
+                                                    : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300'
+                                            }`}
+                                        >
+                                            {cat.label}
+                                            <span class="text-neutral-600 ml-1">{cat.icons.length}</span>
+                                        </button>
+                                    )}
+                                </For>
+                            </div>
+                        </Show>
+
+                        {/* Icon grid */}
+                        <div class="flex-1 overflow-y-auto p-2">
+                            <div class="grid grid-cols-8 gap-1">
+                                <For each={visibleIcons()}>
+                                    {(iconName) => (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSelect(iconName)}
+                                            class={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
+                                                currentRaw() === iconName
+                                                    ? 'bg-sky-600 text-white'
+                                                    : 'hover:bg-neutral-700 text-neutral-400'
+                                            }`}
+                                            title={iconName}
+                                        >
+                                            <i class={`fa-solid fa-${iconName}`} style="font-size: 14px" />
+                                        </button>
+                                    )}
+                                </For>
+                            </div>
+                            <Show when={visibleIcons().length === 0}>
+                                <div class="text-[10px] text-neutral-500 text-center py-6">No icons match "{search()}"</div>
+                            </Show>
+                            <Show when={visibleIcons().length >= MAX_GRID_ICONS}>
+                                <div class="text-[10px] text-neutral-500 text-center py-2">Showing first {MAX_GRID_ICONS} — refine your search</div>
+                            </Show>
+                        </div>
+                    </div>
+                </div>
+            </Show>
         </div>
     );
 };
