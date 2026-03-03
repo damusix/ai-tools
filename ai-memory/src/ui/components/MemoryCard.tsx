@@ -4,22 +4,13 @@ import Icon from './Icon';
 
 const fmtDate = (d: string) => (d ? new Date(d).toLocaleString() : '');
 
-const domainIcons: Record<string, string> = {
-    frontend: 'monitor', backend: 'server', data: 'database',
-    api: 'globe', design: 'palette', security: 'shield',
-    testing: 'test-tube', tooling: 'wrench', devops: 'git-branch',
-};
-
-const categoryIcons: Record<string, string> = {
-    decision: 'gavel', pattern: 'repeat', preference: 'sliders',
-    fact: 'bookmark', solution: 'puzzle',
-};
-
 export const MemoryCard: Component<{
     memory: Memory;
     onDelete: (id: number) => void;
     animation?: string;
     widthClass?: string;
+    domainIcon?: string;
+    categoryIcon?: string;
 }> = (props) => {
     const m = props.memory;
     const width = () => props.widthClass || 'w-[calc(33.333%-11px)] min-w-[280px]';
@@ -28,12 +19,12 @@ export const MemoryCard: Component<{
             <div class="flex items-start justify-between gap-3 mb-2">
                 <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="px-2 py-0.5 rounded text-xs font-medium bg-sky-400/10 text-sky-300/80 flex items-center gap-1">
-                        <Icon name={categoryIcons[m.category] || 'bookmark'} size={11} />
+                        <i class={`fa-solid ${props.categoryIcon || 'fa-bookmark'}`} style="font-size: 11px"></i>
                         {m.category}
                     </span>
                     <Show when={m.domain}>
                         <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-400/10 text-emerald-300/80 flex items-center gap-1">
-                            <Icon name={domainIcons[m.domain!] || 'folder'} size={11} />
+                            <i class={`fa-solid ${props.domainIcon || 'fa-folder'}`} style="font-size: 11px"></i>
                             {m.domain}
                         </span>
                     </Show>

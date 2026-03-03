@@ -6,6 +6,7 @@ import { ConfirmModal } from './components/Modal';
 import TerminalLogs from './components/TerminalLogs';
 import HelpDrawer from './components/HelpDrawer';
 import Settings from './components/Settings';
+import Taxonomy from './components/Taxonomy';
 import TransferModal from './components/TransferModal';
 import Icon from './components/Icon';
 import { sse, listen } from './sse';
@@ -58,17 +59,6 @@ export const shortPath = (p: string) =>
     p === '_global' ? 'global' : p.replace(/^\/(?:Users|home)\/[^/]+\//, '~/');
 
 
-const domainIcons: Record<string, string> = {
-    frontend: 'monitor', backend: 'server', data: 'database',
-    api: 'globe', design: 'palette', security: 'shield',
-    testing: 'test-tube', tooling: 'wrench', devops: 'git-branch',
-};
-
-const categoryIcons: Record<string, string> = {
-    decision: 'gavel', pattern: 'repeat', preference: 'sliders',
-    fact: 'bookmark', solution: 'puzzle',
-};
-
 const App: Component = () => {
     const [project, setProject] = createSignal(localStorage.getItem(STORAGE_KEY) || '');
     const [refreshKey, setRefreshKey] = createSignal(0);
@@ -79,6 +69,7 @@ const App: Component = () => {
     const [logsOpen, setLogsOpen] = createSignal(false);
     const [helpOpen, setHelpOpen] = createSignal(false);
     const [settingsOpen, setSettingsOpen] = createSignal(false);
+    const [taxonomyOpen, setTaxonomyOpen] = createSignal(false);
     const [transferOpen, setTransferOpen] = createSignal(false);
     const [helpTopic, setHelpTopic] = createSignal('');
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
@@ -164,6 +155,20 @@ const App: Component = () => {
     });
 
     const [projects] = createResource(() => refreshKey(), () => api<Project[]>('/api/projects'));
+
+    const [domainMeta] = createResource(() => refreshKey(), () => api<{ name: string; icon: string }[]>('/api/domains'));
+    const [categoryMeta] = createResource(() => refreshKey(), () => api<{ name: string; icon: string }[]>('/api/categories'));
+
+    const domainIconMap = createMemo(() => {
+        const map: Record<string, string> = {};
+        for (const d of domainMeta() || []) map[d.name] = d.icon;
+        return map;
+    });
+    const categoryIconMap = createMemo(() => {
+        const map: Record<string, string> = {};
+        for (const c of categoryMeta() || []) map[c.name] = c.icon;
+        return map;
+    });
 
     const [memories] = createResource(
         () => ({ project: project(), key: refreshKey() }),
@@ -279,6 +284,14 @@ const App: Component = () => {
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button
+                        onClick={() => setTaxonomyOpen(true)}
+                        class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
+                        title="Manage domains and categories"
+                    >
+                        <i class="fa-solid fa-tags" style="font-size: 14px"></i>
+                        Taxonomy
+                    </button>
                     <button
                         onClick={() => setSettingsOpen(true)}
                         class="px-2 py-1.5 rounded text-neutral-500 hover:text-sky-400 transition-colors flex items-center"
@@ -423,7 +436,7 @@ const App: Component = () => {
                                                                         onClick={() => toggleDomain(domKey)}
                                                                     >
                                                                         <span class="capitalize flex items-center gap-1.5">
-                                                                            <Icon name={domainIcons[domGroup.domain] || 'folder'} size={14} />
+                                                                            <i class={`fa-solid ${domainIconMap()[domGroup.domain] || 'fa-folder'}`} style="font-size: 14px"></i>
                                                                             {domGroup.domain}
                                                                         </span>
                                                                         <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
@@ -441,7 +454,7 @@ const App: Component = () => {
                                                                                                 onClick={() => toggleCategory(catKey)}
                                                                                             >
                                                                                                 <span class="capitalize flex items-center gap-1.5">
-                                                                                                    <Icon name={categoryIcons[catGroup.category] || 'bookmark'} size={12} />
+                                                                                                    <i class={`fa-solid ${categoryIconMap()[catGroup.category] || 'fa-bookmark'}`} style="font-size: 12px"></i>
                                                                                                     {catGroup.category}
                                                                                                     <span class="text-neutral-600 font-normal">({catGroup.memories.length})</span>
                                                                                                 </span>
@@ -454,6 +467,8 @@ const App: Component = () => {
                                                                                                             <MemoryCard
                                                                                                                 memory={m}
                                                                                                                 onDelete={(id) => setDeleteTarget({ type: 'memories', id })}
+                                                                                                                domainIcon={domainIconMap()[m.domain || ''] || 'fa-folder'}
+                                                                                                                categoryIcon={categoryIconMap()[m.category] || 'fa-bookmark'}
                                                                                                             />
                                                                                                         )}
                                                                                                     </For>
@@ -492,6 +507,8 @@ const App: Component = () => {
             <HelpDrawer open={helpOpen()} topic={helpTopic()} onClose={() => setHelpOpen(false)} />
 
             <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} showToast={showToast} />
+
+            <Taxonomy open={taxonomyOpen()} onClose={() => setTaxonomyOpen(false)} showToast={showToast} />
 
             <TransferModal
                 open={transferOpen()}
