@@ -13,6 +13,13 @@ import {
     deleteMemory,
     deleteObservation,
     listDomains,
+    insertDomain,
+    updateDomain,
+    deleteDomain,
+    listCategories,
+    insertCategory,
+    updateCategory,
+    deleteCategory,
     searchMemories,
     transferProject,
 } from './db.js';
@@ -105,6 +112,69 @@ export function createApp(): Hono {
     app.get('/api/domains', (c) => {
         const project = c.req.query('project');
         return c.json(listDomains(project));
+    });
+
+    app.post('/api/domains', async (c) => {
+        const { name, description, icon } = await c.req.json();
+        if (!name || !description) return c.json({ error: 'name and description required' }, 400);
+        insertDomain(name, description, icon || 'fa-folder');
+        log('api', `Domain created: ${name}`);
+        broadcast('counts:updated', {});
+        return c.json({ created: true, name });
+    });
+
+    app.put('/api/domains/:name', async (c) => {
+        const name = c.req.param('name');
+        const { description, icon } = await c.req.json();
+        updateDomain(name, description, icon);
+        log('api', `Domain updated: ${name}`);
+        return c.json({ updated: true, name });
+    });
+
+    app.delete('/api/domains/:name', (c) => {
+        const name = c.req.param('name');
+        try {
+            deleteDomain(name);
+            log('api', `Domain deleted: ${name}`);
+            broadcast('counts:updated', {});
+            return c.json({ deleted: true, name });
+        } catch (err: any) {
+            return c.json({ error: err.message }, 409);
+        }
+    });
+
+    app.get('/api/categories', (c) => {
+        const project = c.req.query('project');
+        return c.json(listCategories(project));
+    });
+
+    app.post('/api/categories', async (c) => {
+        const { name, description, icon } = await c.req.json();
+        if (!name || !description) return c.json({ error: 'name and description required' }, 400);
+        insertCategory(name, description, icon || 'fa-bookmark');
+        log('api', `Category created: ${name}`);
+        broadcast('counts:updated', {});
+        return c.json({ created: true, name });
+    });
+
+    app.put('/api/categories/:name', async (c) => {
+        const name = c.req.param('name');
+        const { description, icon } = await c.req.json();
+        updateCategory(name, description, icon);
+        log('api', `Category updated: ${name}`);
+        return c.json({ updated: true, name });
+    });
+
+    app.delete('/api/categories/:name', (c) => {
+        const name = c.req.param('name');
+        try {
+            deleteCategory(name);
+            log('api', `Category deleted: ${name}`);
+            broadcast('counts:updated', {});
+            return c.json({ deleted: true, name });
+        } catch (err: any) {
+            return c.json({ error: err.message }, 409);
+        }
     });
 
     app.get('/api/observations', (c) => {
