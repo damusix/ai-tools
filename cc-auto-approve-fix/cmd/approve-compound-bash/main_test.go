@@ -90,3 +90,42 @@ func TestEvaluateCommandIncludesReason(t *testing.T) {
 		t.Fatal("expected reason for non-allow decision")
 	}
 }
+
+func TestRuleHomeExpansion(t *testing.T) {
+	t.Setenv("HOME", "/Users/tester")
+	allow := parseRuleArray(`["Bash(cat ~/.claude/skills/*)"]`)
+	eval := evaluateCommand("cat /Users/tester/.claude/skills/my-skill/SKILL.md", allow, nil)
+	if eval.Decision != decisionAllow {
+		t.Fatalf("expected allow with expanded home prefix, got %s (%s)", eval.Decision, eval.Reason)
+	}
+}
+
+func TestRuleHomeExpansionWithEnvSyntax(t *testing.T) {
+	t.Setenv("HOME", "/Users/tester")
+	allow := parseRuleArray(`["Bash(ls $HOME/.claude/skills/*)","Bash(cat ${HOME}/.claude/skills/*)"]`)
+
+	evalLS := evaluateCommand("ls /Users/tester/.claude/skills/", allow, nil)
+	if evalLS.Decision != decisionAllow {
+		t.Fatalf("expected allow for $HOME variant, got %s (%s)", evalLS.Decision, evalLS.Reason)
+	}
+
+	evalCat := evaluateCommand("cat /Users/tester/.claude/skills/my-skill/SKILL.md", allow, nil)
+	if evalCat.Decision != decisionAllow {
+		t.Fatalf("expected allow for ${HOME} variant, got %s (%s)", evalCat.Decision, evalCat.Reason)
+	}
+}
+
+func TestRuleHomeExpansionPreservesOriginalPrefix(t *testing.T) {
+	t.Setenv("HOME", "/Users/tester")
+	allow := parseRuleArray(`["Bash(cat ~/.claude/skills/*)"]`)
+
+	evalTilde := evaluateCommand("cat ~/.claude/skills/foo.md", allow, nil)
+	if evalTilde.Decision != decisionAllow {
+		t.Fatalf("expected allow for original tilde prefix, got %s (%s)", evalTilde.Decision, evalTilde.Reason)
+	}
+
+	evalAbs := evaluateCommand("cat /Users/tester/.claude/skills/foo.md", allow, nil)
+	if evalAbs.Decision != decisionAllow {
+		t.Fatalf("expected allow for expanded absolute prefix, got %s (%s)", evalAbs.Decision, evalAbs.Reason)
+	}
+}

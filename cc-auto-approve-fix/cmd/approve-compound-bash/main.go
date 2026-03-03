@@ -382,12 +382,16 @@ func (a *app) loadPrefixes(allowJSON, denyJSON string) settingsLoadResult {
 		result.EffectiveFiles = append(result.EffectiveFiles, file)
 		for _, rule := range cfg.Permissions.Allow {
 			if p, ok := extractBashPrefix(rule); ok && p != "" {
-				allowSet[p] = true
+				for _, expanded := range expandPrefixVariants(p) {
+					allowSet[expanded] = true
+				}
 			}
 		}
 		for _, rule := range cfg.Permissions.Deny {
 			if p, ok := extractBashPrefix(rule); ok && p != "" {
-				denySet[p] = true
+				for _, expanded := range expandPrefixVariants(p) {
+					denySet[expanded] = true
+				}
 			}
 		}
 		result.Files = append(result.Files, status)
@@ -419,7 +423,9 @@ func parseRuleArray(raw string) []string {
 	set := map[string]bool{}
 	for _, rule := range rules {
 		if p, ok := extractBashPrefix(rule); ok && p != "" {
-			set[p] = true
+			for _, expanded := range expandPrefixVariants(p) {
+				set[expanded] = true
+			}
 		}
 	}
 	return sortedKeys(set)
@@ -439,6 +445,21 @@ func extractBashPrefix(rule string) (string, bool) {
 		inner = strings.TrimSuffix(inner, "*")
 	}
 	return inner, true
+}
+
+func expandPrefixVariants(prefix string) []string {
+	set := map[string]bool{prefix: true}
+	home := os.Getenv("HOME")
+	if home == "" {
+		return sortedKeys(set)
+	}
+	homeWithSlash := home + "/"
+	for _, token := range []string{"~/", "$HOME/", "${HOME}/"} {
+		if strings.Contains(prefix, token) {
+			set[strings.ReplaceAll(prefix, token, homeWithSlash)] = true
+		}
+	}
+	return sortedKeys(set)
 }
 
 func getCommand(raw []byte) string {
@@ -863,7 +884,8 @@ func firstPrefixMatch(command string, prefixes []string) (bool, string, string) 
 		for _, prefix := range prefixes {
 			if candidate == prefix ||
 				strings.HasPrefix(candidate, prefix+" ") ||
-				strings.HasPrefix(candidate, prefix+"/") {
+				strings.HasPrefix(candidate, prefix+"/") ||
+				(strings.HasSuffix(prefix, "/") && strings.HasPrefix(candidate, prefix)) {
 				return true, prefix, candidate
 			}
 		}

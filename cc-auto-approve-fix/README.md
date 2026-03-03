@@ -41,7 +41,7 @@ Copy the script somewhere and register it in `~/.claude/settings.json`:
 }
 ```
 
-The hook reads permissions from all settings layers (global, global local, project, project local), supports all permission formats (`Bash(cmd *)`, `Bash(cmd:*)`, `Bash(cmd)`), strips env var prefixes (`NODE_ENV=prod npm test` matches `npm`), and recursively analyzes shell `-c` forms (`bash -lc`, `bash -euxc`, `sh -c`, `zsh -c`).
+The hook reads permissions from all settings layers (global, global local, project, project local), supports all permission formats (`Bash(cmd *)`, `Bash(cmd:*)`, `Bash(cmd)`), strips env var prefixes (`NODE_ENV=prod npm test` matches `npm`), expands home-based permission prefixes (`~/`, `$HOME/`, `${HOME}/`) to absolute paths for matching, and recursively analyzes shell `-c` forms (`bash -lc`, `bash -euxc`, `sh -c`, `zsh -c`).
 
 ## How it decides
 
@@ -93,10 +93,10 @@ Run doctor mode to verify integration and settings loading:
 
 ## Testing
 
-98 tests across parsing, permissions, and security. Requires [BATS](https://bats-core.readthedocs.io/).
+The project includes a full legacy parity suite plus focused Go unit tests.
 
 ```bash
-bats test/
+go test ./...
 ```
 
 ## Build and release
