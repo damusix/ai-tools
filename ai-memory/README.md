@@ -176,6 +176,22 @@ A web UI is available at `http://localhost:24636` (or whatever port is configure
 The dashboard updates in real-time via server-sent events.
 
 
+### Dashboard Screenshots
+
+![Memories and Observations](./docs/images/memories-and-observations.png)
+
+![Domain Categories](./docs/images/domain-categories.png)
+
+![Tags](./docs/images/tags.png)
+
+![Configuration](./docs/images/config.png)
+
+
+### CLI Screenshot
+
+![CLI Output](./docs/images/bash-output.png)
+
+
 ## Configuration
 
 All configuration lives in `~/.ai-memory/config.yaml`. Every field has a sensible default — the file doesn't need to exist for ai-memory to work. You can also edit settings from the dashboard's gear icon, which writes the file and restarts the server.

@@ -16,19 +16,19 @@ Persistent memory for Claude Code. Automatically captures observations from your
 - MCP tools for saving, searching, and organizing memories
 - Slash commands: `/remember`, `/forget`
 
-#### Dashboard
+See the [ai-memory README](./ai-memory/README.md) for dashboard and CLI screenshots.
 
-![Memories and Observations](./ai-memory/docs/images/memories-and-observations.png)
 
-![Domain Categories](./ai-memory/docs/images/domain-categories.png)
+### [cc-auto-approve-fix](./cc-auto-approve-fix)
 
-![Tags](./ai-memory/docs/images/tags.png)
+Auto-approves compound Bash commands in Claude Code by parsing command segments and checking each segment against your allow/deny rules.
 
-![Configuration](./ai-memory/docs/images/config.png)
-
-#### CLI
-
-![CLI Output](./ai-memory/docs/images/bash-output.png)
+- Native Go parser (`mvdan.cc/sh/v3/syntax`) for robust shell AST handling
+- Supports compound operators, substitutions, subshells, and `bash/sh/zsh -c` recursion
+- Keep Claude in control on uncertainty (fallthrough behavior)
+- Optional explainability output (`--explain`) for clear non-allow reasons
+- Includes `simulate` mode for local decision testing and `doctor` mode for settings diagnostics
+- Ships with prebuilt binaries for `darwin/linux` and `amd64/arm64`
 
 
 ## Installation
