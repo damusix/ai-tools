@@ -7,6 +7,7 @@ import { parse, stringify } from 'yaml';
 const workerSchema = z.object({
     pollIntervalMs: z.number().min(1000).default(5000),
     observationSynthesisThreshold: z.number().min(1).default(10),
+    synthesisTimeoutMs: z.number().min(0).default(1800000),
     observationRetentionDays: z.number().min(1).default(14),
     observationSkipLimit: z.number().min(1).default(3),
     backfillStartupDelayMs: z.number().min(0).default(10000),
