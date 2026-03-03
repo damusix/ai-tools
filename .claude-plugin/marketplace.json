@@ -12,6 +12,16 @@
             "version": "0.1.0",
             "source": "./ai-memory",
             "description": "Persistent memory across Claude Code sessions"
+        },
+        {
+            "name": "auto-approve-compound-bash",
+            "version": "1.0.0",
+            "source": "./cc-auto-approve-fix",
+            "description": "Auto-approve compound Bash commands by parsing each segment against allow/deny rules",
+            "author": {
+                "name": "Ory Band"
+            },
+            "keywords": ["hooks", "bash", "permissions", "compound-commands", "auto-approve"]
         }
     ]
 }
