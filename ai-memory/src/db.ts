@@ -62,8 +62,7 @@ function initSchema(db: Database.Database): void {
             project_id INTEGER NOT NULL REFERENCES projects(id),
             content TEXT NOT NULL,
             tags TEXT NOT NULL DEFAULT '',
-            category TEXT NOT NULL DEFAULT 'fact'
-                CHECK(category IN ('decision','pattern','preference','fact','solution')),
+            category TEXT NOT NULL DEFAULT 'fact',
             importance INTEGER NOT NULL DEFAULT 3
                 CHECK(importance BETWEEN 1 AND 5),
             observation_ids TEXT NOT NULL DEFAULT '',
@@ -118,7 +117,14 @@ function initSchema(db: Database.Database): void {
 
         CREATE TABLE IF NOT EXISTS domains (
             name TEXT PRIMARY KEY,
-            description TEXT NOT NULL DEFAULT ''
+            description TEXT NOT NULL DEFAULT '',
+            icon TEXT NOT NULL DEFAULT 'fa-folder'
+        );
+
+        CREATE TABLE IF NOT EXISTS categories (
+            name TEXT PRIMARY KEY,
+            description TEXT NOT NULL DEFAULT '',
+            icon TEXT NOT NULL DEFAULT 'fa-bookmark'
         );
 
         CREATE INDEX IF NOT EXISTS idx_observations_project ON observations(project_id);
@@ -142,31 +148,50 @@ function initSchema(db: Database.Database): void {
         db.exec("ALTER TABLE observations ADD COLUMN skipped_count INTEGER NOT NULL DEFAULT 0");
     }
 
+    // Migration: add icon column to domains (idempotent)
+    const domCols = db.prepare("PRAGMA table_info(domains)").all() as { name: string }[];
+    if (!domCols.some(c => c.name === 'icon')) {
+        db.exec("ALTER TABLE domains ADD COLUMN icon TEXT NOT NULL DEFAULT 'fa-folder'");
+    }
+
     // Seed default domains
-    const domainSeed: [string, string][] = [
-        ['frontend', 'UI components, routing, state management, browser APIs, DOM'],
-        ['styling', 'CSS, themes, layouts, responsive design, animations'],
-        ['backend', 'Server logic, business rules, middleware, request handling'],
-        ['api', 'API design, REST/GraphQL contracts, versioning, endpoints'],
-        ['data', 'Database, schemas, queries, migrations, ORMs, caching'],
-        ['auth', 'Authentication, authorization, sessions, tokens, RBAC'],
-        ['testing', 'Test frameworks, strategies, fixtures, mocking, coverage'],
-        ['performance', 'Optimization, caching, profiling, lazy loading, bundle size'],
-        ['security', 'Vulnerabilities, hardening, input validation, OWASP'],
-        ['accessibility', 'a11y, WCAG, screen readers, keyboard navigation'],
-        ['infrastructure', 'Deployment, hosting, cloud, Docker, serverless'],
-        ['devops', 'CI/CD, pipelines, environments, release process'],
-        ['monitoring', 'Logging, alerting, observability, error tracking'],
-        ['tooling', 'Build tools, linters, formatters, bundlers, dev environment'],
-        ['git', 'Version control, branching strategy, hooks, workflows'],
-        ['dependencies', 'Package management, upgrades, compatibility, vendoring'],
-        ['architecture', 'System design, patterns, module structure, conventions'],
-        ['integrations', 'Third-party services, SDKs, webhooks, external APIs'],
-        ['general', 'Cross-cutting concerns that don\'t fit elsewhere'],
+    const domainSeed: [string, string, string][] = [
+        ['frontend', 'UI components, routing, state management, browser APIs, DOM', 'fa-display'],
+        ['styling', 'CSS, themes, layouts, responsive design, animations', 'fa-palette'],
+        ['backend', 'Server logic, business rules, middleware, request handling', 'fa-server'],
+        ['api', 'API design, REST/GraphQL contracts, versioning, endpoints', 'fa-globe'],
+        ['data', 'Database, schemas, queries, migrations, ORMs, caching', 'fa-database'],
+        ['auth', 'Authentication, authorization, sessions, tokens, RBAC', 'fa-key'],
+        ['testing', 'Test frameworks, strategies, fixtures, mocking, coverage', 'fa-vial'],
+        ['performance', 'Optimization, caching, profiling, lazy loading, bundle size', 'fa-gauge-high'],
+        ['security', 'Vulnerabilities, hardening, input validation, OWASP', 'fa-shield-halved'],
+        ['accessibility', 'a11y, WCAG, screen readers, keyboard navigation', 'fa-universal-access'],
+        ['infrastructure', 'Deployment, hosting, cloud, Docker, serverless', 'fa-cloud'],
+        ['devops', 'CI/CD, pipelines, environments, release process', 'fa-code-branch'],
+        ['monitoring', 'Logging, alerting, observability, error tracking', 'fa-chart-line'],
+        ['tooling', 'Build tools, linters, formatters, bundlers, dev environment', 'fa-wrench'],
+        ['git', 'Version control, branching strategy, hooks, workflows', 'fa-code-branch'],
+        ['dependencies', 'Package management, upgrades, compatibility, vendoring', 'fa-cubes'],
+        ['architecture', 'System design, patterns, module structure, conventions', 'fa-sitemap'],
+        ['integrations', 'Third-party services, SDKs, webhooks, external APIs', 'fa-plug'],
+        ['general', 'Cross-cutting concerns that don\'t fit elsewhere', 'fa-folder'],
     ];
-    const insertDomain = db.prepare('INSERT OR IGNORE INTO domains (name, description) VALUES (?, ?)');
-    for (const [name, desc] of domainSeed) {
-        insertDomain.run(name, desc);
+    const insertDomainStmt = db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)');
+    for (const [name, desc, icon] of domainSeed) {
+        insertDomainStmt.run(name, desc, icon);
+    }
+
+    // Seed default categories
+    const categorySeed: [string, string, string][] = [
+        ['decision', 'A choice made between options, with rationale', 'fa-gavel'],
+        ['pattern', 'A recurring approach established for the codebase', 'fa-repeat'],
+        ['preference', 'A user style or workflow preference', 'fa-sliders'],
+        ['fact', 'A discovered truth about the system or environment', 'fa-bookmark'],
+        ['solution', 'A working fix for a non-obvious problem', 'fa-puzzle-piece'],
+    ];
+    const insertCategoryStmt = db.prepare('INSERT OR IGNORE INTO categories (name, description, icon) VALUES (?, ?, ?)');
+    for (const [name, desc, icon] of categorySeed) {
+        insertCategoryStmt.run(name, desc, icon);
     }
 
     // Seed the _global project
