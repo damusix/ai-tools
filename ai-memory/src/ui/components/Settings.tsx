@@ -10,6 +10,7 @@ const sections: Section[] = [
         icon: 'wrench', label: 'Worker', fields: [
             { key: 'pollIntervalMs', label: 'Poll Interval', fallback: 5000, desc: 'ms between queue checks' },
             { key: 'observationSynthesisThreshold', label: 'Synthesis Threshold', fallback: 10, desc: 'observations before synthesis triggers' },
+            { key: 'synthesisTimeoutMs', label: 'Synthesis Timeout', fallback: 1800000, desc: 'ms before stale observations trigger synthesis (0 = disabled)' },
             { key: 'observationRetentionDays', label: 'Retention Days', fallback: 14, desc: 'days to keep processed observations' },
             { key: 'observationSkipLimit', label: 'Skip Limit', fallback: 3, desc: 'skips before observation is deleted' },
             { key: 'backfillStartupDelayMs', label: 'Backfill Delay', fallback: 10000, desc: 'ms before backfill starts' },
