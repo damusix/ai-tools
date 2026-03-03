@@ -21,6 +21,17 @@ import {
     completeMemoryQueue,
     countUnprocessedObservations,
     markObservationsProcessed,
+    listDomainsRaw,
+    listDomains,
+    insertDomain,
+    updateDomain,
+    deleteDomain,
+    listCategoriesRaw,
+    listCategories,
+    insertCategory,
+    updateCategory,
+    deleteCategory,
+    getProjectsWithStaleObservations,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -187,5 +198,133 @@ describe('memory queue', () => {
         const db = getDb();
         const row = db.prepare('SELECT status FROM memory_queue WHERE id = ?').get(qid) as any;
         expect(row.status).toBe('done');
+    });
+});
+
+describe('domains CRUD', () => {
+    it('insertDomain adds a new domain', () => {
+        insertDomain('ml', 'Machine learning, training, inference', 'fa-brain');
+        const all = listDomainsRaw();
+        const ml = all.find(d => d.name === 'ml');
+        expect(ml).toBeTruthy();
+        expect(ml!.description).toBe('Machine learning, training, inference');
+    });
+
+    it('insertDomain is idempotent (INSERT OR IGNORE)', () => {
+        insertDomain('ml', 'desc1', 'fa-brain');
+        insertDomain('ml', 'desc2', 'fa-robot');
+        const all = listDomainsRaw();
+        const ml = all.find(d => d.name === 'ml');
+        expect(ml!.description).toBe('desc1');
+    });
+
+    it('updateDomain changes description and icon', () => {
+        insertDomain('ml', 'old desc', 'fa-brain');
+        updateDomain('ml', 'new desc', 'fa-robot');
+        const all = listDomainsRaw();
+        const ml = all.find(d => d.name === 'ml');
+        expect(ml!.description).toBe('new desc');
+    });
+
+    it('deleteDomain removes unused domain', () => {
+        insertDomain('ml', 'desc', 'fa-brain');
+        deleteDomain('ml');
+        const all = listDomainsRaw();
+        expect(all.find(d => d.name === 'ml')).toBeUndefined();
+    });
+
+    it('deleteDomain throws if domain has memories', () => {
+        const proj = getOrCreateProject('/test/dom-del');
+        insertMemory(proj.id, 'test', '', 'fact', 3, '', 'frontend');
+        expect(() => deleteDomain('frontend')).toThrow();
+    });
+
+    it('listDomains includes icon field', () => {
+        const all = listDomains();
+        expect(all[0]).toHaveProperty('icon');
+    });
+});
+
+describe('categories CRUD', () => {
+    it('default categories seeded', () => {
+        const all = listCategoriesRaw();
+        expect(all.length).toBe(5);
+        expect(all.find(c => c.name === 'decision')).toBeTruthy();
+    });
+
+    it('insertCategory adds a new category', () => {
+        insertCategory('bug', 'A confirmed bug or defect', 'fa-bug');
+        const all = listCategoriesRaw();
+        expect(all.find(c => c.name === 'bug')).toBeTruthy();
+    });
+
+    it('updateCategory changes description and icon', () => {
+        updateCategory('fact', 'Updated description', 'fa-circle-info');
+        const all = listCategoriesRaw();
+        expect(all.find(c => c.name === 'fact')!.description).toBe('Updated description');
+    });
+
+    it('deleteCategory removes unused category', () => {
+        insertCategory('temp', 'temporary', 'fa-clock');
+        deleteCategory('temp');
+        const all = listCategoriesRaw();
+        expect(all.find(c => c.name === 'temp')).toBeUndefined();
+    });
+
+    it('deleteCategory throws if category has memories', () => {
+        const proj = getOrCreateProject('/test/cat-del');
+        insertMemory(proj.id, 'test', '', 'fact', 3, '');
+        expect(() => deleteCategory('fact')).toThrow();
+    });
+
+    it('listCategories includes count and icon', () => {
+        const proj = getOrCreateProject('/test/cat-count');
+        insertMemory(proj.id, 'test', '', 'fact', 3, '');
+        const all = listCategories();
+        const fact = all.find(c => c.name === 'fact');
+        expect(fact!.count).toBeGreaterThan(0);
+        expect(fact).toHaveProperty('icon');
+    });
+});
+
+describe('stale observations', () => {
+    it('returns empty when no unprocessed observations', () => {
+        expect(getProjectsWithStaleObservations(60000)).toEqual([]);
+    });
+
+    it('returns empty when observations are recent', () => {
+        const proj = getOrCreateProject('/test/stale');
+        insertObservation(proj.id, 'fresh obs', 'src');
+        expect(getProjectsWithStaleObservations(1800000)).toEqual([]);
+    });
+
+    it('returns project when observations are old enough', () => {
+        const proj = getOrCreateProject('/test/stale2');
+        const db = getDb();
+        db.prepare(
+            "INSERT INTO observations (project_id, content, source_summary, processed, created_at) VALUES (?, ?, ?, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'))"
+        ).run(proj.id, 'old obs', 'src');
+        const result = getProjectsWithStaleObservations(60000);
+        expect(result).toContain(proj.id);
+    });
+
+    it('excludes projects with pending synthesis job', () => {
+        const proj = getOrCreateProject('/test/stale3');
+        const db = getDb();
+        db.prepare(
+            "INSERT INTO observations (project_id, content, source_summary, processed, created_at) VALUES (?, ?, ?, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'))"
+        ).run(proj.id, 'old obs', 'src');
+        enqueueMemorySynthesis(proj.id);
+        const result = getProjectsWithStaleObservations(60000);
+        expect(result).not.toContain(proj.id);
+    });
+
+    it('returns empty when timeoutMs is 0', () => {
+        const proj = getOrCreateProject('/test/stale4');
+        const db = getDb();
+        db.prepare(
+            "INSERT INTO observations (project_id, content, source_summary, processed, created_at) VALUES (?, ?, ?, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'))"
+        ).run(proj.id, 'old obs', 'src');
+        expect(getProjectsWithStaleObservations(0)).toEqual([]);
     });
 });

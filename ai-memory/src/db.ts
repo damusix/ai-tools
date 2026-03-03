@@ -286,6 +286,10 @@ export function insertMemory(
     observationIds: string,
     domain?: string,
 ): number {
+    const validCats = listCategoriesRaw();
+    if (!validCats.some(c => c.name === category)) {
+        throw new Error(`Invalid category: "${category}". Valid: ${validCats.map(c => c.name).join(', ')}`);
+    }
     const db = getDb();
     const now = new Date().toISOString();
     const result = db
@@ -308,6 +312,10 @@ export function updateMemory(
     observationIds: string,
     domain?: string,
 ): void {
+    const validCats = listCategoriesRaw();
+    if (!validCats.some(c => c.name === category)) {
+        throw new Error(`Invalid category: "${category}". Valid: ${validCats.map(c => c.name).join(', ')}`);
+    }
     const db = getDb();
     const now = new Date().toISOString();
     db.prepare(
@@ -408,10 +416,10 @@ export function deleteObservation(id: number): boolean {
 
 // ── Domain queries ──────────────────────────────────────────────
 
-export function listDomains(projectPath?: string): { name: string; description: string; count: number }[] {
+export function listDomains(projectPath?: string): { name: string; description: string; icon: string; count: number }[] {
     const db = getDb();
     let sql = `
-        SELECT d.name, d.description, COUNT(m.id) as count
+        SELECT d.name, d.description, d.icon, COUNT(m.id) as count
         FROM domains d
         LEFT JOIN memories m ON m.domain = d.name
     `;
@@ -429,9 +437,71 @@ export function listDomains(projectPath?: string): { name: string; description: 
     return db.prepare(sql).all(...params) as any[];
 }
 
-export function listDomainsRaw(): { name: string; description: string }[] {
+export function listDomainsRaw(): { name: string; description: string; icon: string }[] {
     const db = getDb();
-    return db.prepare('SELECT name, description FROM domains ORDER BY name').all() as any[];
+    return db.prepare('SELECT name, description, icon FROM domains ORDER BY name').all() as any[];
+}
+
+export function insertDomain(name: string, description: string, icon: string): void {
+    const db = getDb();
+    db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)').run(name, description, icon);
+}
+
+export function updateDomain(name: string, description: string, icon: string): void {
+    const db = getDb();
+    db.prepare('UPDATE domains SET description = ?, icon = ? WHERE name = ?').run(description, icon, name);
+}
+
+export function deleteDomain(name: string): void {
+    const db = getDb();
+    const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE domain = ?').get(name) as any).c;
+    if (count > 0) throw new Error(`Cannot delete domain "${name}": ${count} memories reference it`);
+    db.prepare('DELETE FROM domains WHERE name = ?').run(name);
+}
+
+// ── Category queries ────────────────────────────────────────────
+
+export function listCategoriesRaw(): { name: string; description: string; icon: string }[] {
+    const db = getDb();
+    return db.prepare('SELECT name, description, icon FROM categories ORDER BY name').all() as any[];
+}
+
+export function listCategories(projectPath?: string): { name: string; description: string; icon: string; count: number }[] {
+    const db = getDb();
+    let sql = `
+        SELECT c.name, c.description, c.icon, COUNT(m.id) as count
+        FROM categories c
+        LEFT JOIN memories m ON m.category = c.name
+    `;
+    const params: any[] = [];
+
+    if (projectPath) {
+        sql += `
+            LEFT JOIN projects p ON m.project_id = p.id
+            WHERE (m.id IS NULL OR p.path = ? OR p.path = '_global')
+        `;
+        params.push(projectPath);
+    }
+
+    sql += ' GROUP BY c.name ORDER BY count DESC, c.name';
+    return db.prepare(sql).all(...params) as any[];
+}
+
+export function insertCategory(name: string, description: string, icon: string): void {
+    const db = getDb();
+    db.prepare('INSERT OR IGNORE INTO categories (name, description, icon) VALUES (?, ?, ?)').run(name, description, icon);
+}
+
+export function updateCategory(name: string, description: string, icon: string): void {
+    const db = getDb();
+    db.prepare('UPDATE categories SET description = ?, icon = ? WHERE name = ?').run(description, icon, name);
+}
+
+export function deleteCategory(name: string): void {
+    const db = getDb();
+    const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE category = ?').get(name) as any).c;
+    if (count > 0) throw new Error(`Cannot delete category "${name}": ${count} memories reference it`);
+    db.prepare('DELETE FROM categories WHERE name = ?').run(name);
 }
 
 // ── Tag queries ─────────────────────────────────────────────────
@@ -526,6 +596,24 @@ export function deleteOverSkippedObservations(): number {
     const db = getDb();
     const result = db.prepare('DELETE FROM observations WHERE skipped_count >= ?').run(getConfig().worker.observationSkipLimit);
     return result.changes;
+}
+
+export function getProjectsWithStaleObservations(timeoutMs: number): number[] {
+    if (timeoutMs === 0) return [];
+    const db = getDb();
+    const timeoutSeconds = Math.floor(timeoutMs / 1000);
+    const rows = db.prepare(`
+        SELECT DISTINCT o.project_id
+        FROM observations o
+        WHERE o.processed = 0
+          AND o.created_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-${timeoutSeconds} seconds')
+          AND NOT EXISTS (
+              SELECT 1 FROM memory_queue mq
+              WHERE mq.project_id = o.project_id
+                AND mq.status IN ('pending', 'processing')
+          )
+    `).all() as { project_id: number }[];
+    return rows.map(r => r.project_id);
 }
 
 export function transferProject(fromPath: string, toPath: string): { memories: number; observations: number } {
