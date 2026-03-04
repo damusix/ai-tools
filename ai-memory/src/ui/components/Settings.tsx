@@ -268,7 +268,7 @@ const TaxonomySection: Component<{
 }> = (props) => {
     const [formMode, setFormMode] = createSignal<'none' | 'create' | 'edit'>('none');
     const [editTarget, setEditTarget] = createSignal<TaxonomyItem | null>(null);
-    const [forceDeleteTarget, setForceDeleteTarget] = createSignal<TaxonomyItem | null>(null);
+    const [deleteTarget, setDeleteTarget] = createSignal<TaxonomyItem | null>(null);
 
     const handleCreate = async (data: { name: string; description: string; icon: string }) => {
         const endpoint = props.type === 'domain' ? '/api/domains' : '/api/categories';
@@ -304,38 +304,35 @@ const TaxonomySection: Component<{
         }
     };
 
-    const handleDelete = async (name: string) => {
-        const endpoint = props.type === 'domain' ? `/api/domains/${encodeURIComponent(name)}` : `/api/categories/${encodeURIComponent(name)}`;
-        const res = await fetch(endpoint, { method: 'DELETE' });
-        if (res.ok) {
-            props.showToast(`${props.type} "${name}" deleted`);
-            props.onRefresh();
-        } else {
-            const err = await res.json();
-            props.showToast(err.error || 'Cannot delete');
-        }
+    const handleDelete = (item: TaxonomyItem) => {
+        setDeleteTarget(item);
     };
 
-    const handleForceDelete = async () => {
-        const item = forceDeleteTarget();
+    const confirmDelete = async () => {
+        const item = deleteTarget();
         if (!item) return;
+        const hasMemories = item.count > 0;
         const endpoint = props.type === 'domain'
-            ? `/api/domains/${encodeURIComponent(item.name)}/force`
-            : `/api/categories/${encodeURIComponent(item.name)}/force`;
+            ? `/api/domains/${encodeURIComponent(item.name)}${hasMemories ? '/force' : ''}`
+            : `/api/categories/${encodeURIComponent(item.name)}${hasMemories ? '/force' : ''}`;
         try {
             const res = await fetch(endpoint, { method: 'DELETE' });
             if (res.ok) {
-                const data = await res.json();
-                props.showToast(`Force-deleted ${props.type} "${item.name}" (${data.memoriesDeleted} memories removed)`);
+                if (hasMemories) {
+                    const data = await res.json();
+                    props.showToast(`Deleted ${props.type} "${item.name}" (${data.memoriesDeleted} memories removed)`);
+                } else {
+                    props.showToast(`${props.type} "${item.name}" deleted`);
+                }
                 props.onRefresh();
             } else {
                 const err = await res.json();
-                props.showToast(err.error || 'Force delete failed');
+                props.showToast(err.error || 'Delete failed');
             }
         } catch {
-            props.showToast('Force delete failed');
+            props.showToast('Delete failed');
         }
-        setForceDeleteTarget(null);
+        setDeleteTarget(null);
     };
 
     return (
@@ -386,22 +383,12 @@ const TaxonomySection: Component<{
                                                 <i class="fa-solid fa-pen" style="font-size: 10px" />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(item.name)}
-                                                disabled={item.count > 0}
-                                                class="p-1 rounded hover:bg-neutral-700 text-neutral-500 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                title={item.count > 0 ? `Cannot delete: ${item.count} memories use this` : 'Delete'}
+                                                onClick={() => handleDelete(item)}
+                                                class="p-1 rounded hover:bg-neutral-700 text-neutral-500 hover:text-red-400"
+                                                title={item.count > 0 ? `Delete (will remove ${item.count} memories)` : 'Delete'}
                                             >
                                                 <i class="fa-solid fa-trash" style="font-size: 10px" />
                                             </button>
-                                            <Show when={item.count > 0}>
-                                                <button
-                                                    onClick={() => setForceDeleteTarget(item)}
-                                                    class="p-1 rounded hover:bg-red-900/40 text-red-500/60 hover:text-red-400"
-                                                    title={`Force delete (will remove ${item.count} memories)`}
-                                                >
-                                                    <i class="fa-solid fa-trash-can" style="font-size: 10px" />
-                                                </button>
-                                            </Show>
                                         </div>
                                     </div>
                                 }>
@@ -422,12 +409,20 @@ const TaxonomySection: Component<{
             </div>
 
             <ConfirmModal
-                open={!!forceDeleteTarget()}
-                title="Force Delete"
-                message={`Force delete ${props.type} "${forceDeleteTarget()?.name}"? This will permanently delete ${forceDeleteTarget()?.count || 0} memories.`}
-                confirmLabel="Force Delete"
-                onConfirm={handleForceDelete}
-                onCancel={() => setForceDeleteTarget(null)}
+                open={!!deleteTarget()}
+                title={`Delete ${props.type}`}
+                message={
+                    (deleteTarget()?.count || 0) > 0
+                        ? `Delete ${props.type} "${deleteTarget()?.name}"? This will permanently remove ${deleteTarget()?.count} memories that use this ${props.type}.`
+                        : `Delete ${props.type} "${deleteTarget()?.name}"?`
+                }
+                confirmLabel={(deleteTarget()?.count || 0) > 0 ? 'Force Delete' : 'Delete'}
+                confirmClass={(deleteTarget()?.count || 0) > 0
+                    ? 'text-sm px-3 py-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300'
+                    : undefined
+                }
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteTarget(null)}
             />
         </>
     );
@@ -539,6 +534,8 @@ const Settings: Component<{
     const [saving, setSaving] = createSignal(false);
     const [domains, setDomains] = createSignal<TaxonomyItem[]>([]);
     const [categories, setCategories] = createSignal<TaxonomyItem[]>([]);
+
+    const [restoreConfirm, setRestoreConfirm] = createSignal<'config' | 'domains' | 'categories' | null>(null);
 
     // AI generation state
     const [aiPromptMode, setAiPromptMode] = createSignal<'domain' | 'category' | null>(null);
@@ -656,6 +653,30 @@ const Settings: Component<{
         setAiPromptMode(null);
         setAiPrompt('');
         setAiResults([]);
+    };
+
+    const handleRestoreConfig = () => {
+        const defaults: Record<string, number> = {};
+        for (const section of sections) {
+            for (const field of section.fields) {
+                defaults[field.key] = field.fallback;
+            }
+        }
+        setConfig(defaults);
+        setRestoreConfirm(null);
+        props.showToast('Config reset to defaults — click Save & Restart to apply');
+    };
+
+    const handleRestoreTaxonomy = async (type: 'domains' | 'categories') => {
+        try {
+            const res = await fetch(`/api/${type}/restore-defaults`, { method: 'POST' });
+            const data = await res.json();
+            props.showToast(data.restored > 0 ? `Restored ${data.restored} default ${type}` : `All default ${type} already present`);
+            refreshTaxonomy();
+        } catch {
+            props.showToast('Restore failed');
+        }
+        setRestoreConfirm(null);
     };
 
     const tabs = [
@@ -814,25 +835,53 @@ const Settings: Component<{
                     </Show>
                 </div>
 
-                {/* Footer — only show Save & Restart on config tab */}
-                <Show when={tab() === 'config'}>
-                    <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-neutral-700">
+                {/* Footer */}
+                <div class="flex items-center justify-between px-5 py-3 border-t border-neutral-700">
+                    <div>
+                        <button
+                            onClick={() => setRestoreConfirm(tab())}
+                            class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
+                        >
+                            <i class="fa-solid fa-arrow-rotate-left" style="font-size: 11px"></i>
+                            Restore Defaults
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
                         <button
                             onClick={props.onClose}
                             class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
                         >
                             Cancel
                         </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={saving()}
-                            class="px-3 py-1.5 text-xs rounded bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50 transition-colors flex items-center gap-1.5"
-                        >
-                            <Icon name="rotate-cw" size={12} class={saving() ? 'animate-spin' : ''} />
-                            {saving() ? 'Restarting...' : 'Save & Restart'}
-                        </button>
+                        <Show when={tab() === 'config'}>
+                            <button
+                                onClick={handleSave}
+                                disabled={saving()}
+                                class="px-3 py-1.5 text-xs rounded bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                            >
+                                <Icon name="rotate-cw" size={12} class={saving() ? 'animate-spin' : ''} />
+                                {saving() ? 'Restarting...' : 'Save & Restart'}
+                            </button>
+                        </Show>
                     </div>
-                </Show>
+                </div>
+
+                <ConfirmModal
+                    open={!!restoreConfirm()}
+                    title="Restore Defaults"
+                    message={
+                        restoreConfirm() === 'config'
+                            ? 'Reset all configuration values to their defaults? You will need to Save & Restart to apply.'
+                            : `Restore default ${restoreConfirm()}? This will add back any removed defaults but won't overwrite your changes.`
+                    }
+                    confirmLabel="Restore"
+                    onConfirm={() => {
+                        const t = restoreConfirm();
+                        if (t === 'config') handleRestoreConfig();
+                        else if (t === 'domains' || t === 'categories') handleRestoreTaxonomy(t);
+                    }}
+                    onCancel={() => setRestoreConfirm(null)}
+                />
             </div>
         </Overlay>
     );

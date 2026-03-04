@@ -416,18 +416,31 @@ const App: Component = () => {
                                 {([projPath, obs]) => (
                                     <>
                                         <Show when={projPath !== '_'}>
-                                            <button
-                                                class="w-full mt-4 mb-2 px-2 py-1.5 rounded bg-neutral-800/60 border border-neutral-700/50 flex items-center gap-1.5 hover:bg-neutral-800 transition-colors"
-                                                onClick={() => toggleProject(`obs:${projPath}`)}
-                                                title={projectDescMap()[projPath] || ''}
-                                            >
-                                                <i class={`fa-solid ${projPath === '_global' ? 'fa-globe' : (projectIconMap()[projPath] || 'fa-folder-open')} text-purple-400`} style="font-size: 12px"></i>
-                                                <span class="text-xs font-medium text-neutral-300">{shortPath(projPath)}</span>
-                                                <span class="text-[10px] text-neutral-500">({obs.length})</span>
-                                                <span class="ml-auto">
-                                                    <Icon name={collapsedProjects()[`obs:${projPath}`] ? 'chevron-right' : 'chevron-down'} size={10} class="text-neutral-500" />
-                                                </span>
-                                            </button>
+                                            <div class="w-full mt-4 mb-2 px-2 py-1.5 rounded bg-neutral-800/60 border border-neutral-700/50 flex items-center gap-1.5 hover:bg-neutral-800 transition-colors min-w-0 group/proj">
+                                                <button
+                                                    class="flex items-center gap-1.5 min-w-0 flex-1"
+                                                    onClick={() => toggleProject(`obs:${projPath}`)}
+                                                    title={projPath}
+                                                >
+                                                    <i class={`fa-solid ${projPath === '_global' ? 'fa-globe' : (projectIconMap()[projPath] || 'fa-folder-open')} text-purple-400 shrink-0`} style="font-size: 12px"></i>
+                                                    <span class="text-xs font-medium text-neutral-300 truncate min-w-0 flex-1 text-left">{shortPath(projPath)}</span>
+                                                    <span class="text-[10px] text-neutral-500 shrink-0">({obs.length})</span>
+                                                    <Icon name={collapsedProjects()[`obs:${projPath}`] ? 'chevron-right' : 'chevron-down'} size={10} class="text-neutral-500 shrink-0" />
+                                                </button>
+                                                <Show when={projPath !== '_global'}>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const proj = (projects() || []).find((p: Project) => p.path === projPath);
+                                                            if (proj) setDeleteProjectTarget(proj);
+                                                        }}
+                                                        class="p-0.5 rounded text-neutral-600 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover/proj:opacity-100 transition-opacity shrink-0"
+                                                        title="Delete project"
+                                                    >
+                                                        <i class="fa-solid fa-trash" style="font-size: 9px"></i>
+                                                    </button>
+                                                </Show>
+                                            </div>
                                         </Show>
                                         <Show when={projPath === '_' || !collapsedProjects()[`obs:${projPath}`]}>
                                             <div class="flex flex-col gap-2">
@@ -460,25 +473,40 @@ const App: Component = () => {
                                         {/* Project box */}
                                         <div class={`mt-4 first:mt-0 rounded-xl border border-neutral-700/50 bg-neutral-800/20 overflow-hidden ${projGroup.project === '_' ? '' : ''}`}>
                                             <Show when={projGroup.project !== '_'}>
-                                                <button
-                                                    class="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-neutral-800/60 transition-colors"
-                                                    onClick={() => toggleProject(projGroup.project)}
-                                                    title={projectDescMap()[projGroup.project] || ''}
+                                                <div
+                                                    class="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-neutral-800/60 transition-colors group/proj"
                                                 >
-                                                    <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
-                                                    <div class="flex flex-col items-start">
-                                                        <span class="text-sm font-bold text-neutral-200">{shortPath(projGroup.project)}</span>
-                                                        <Show when={projectDescMap()[projGroup.project]}>
-                                                            <span class="text-[10px] text-neutral-500 leading-tight">{projectDescMap()[projGroup.project]}</span>
-                                                        </Show>
-                                                    </div>
-                                                    <span class="text-xs text-neutral-500">
-                                                        ({projGroup.domains.reduce((n, d) => n + d.categories.reduce((c, cat) => c + cat.memories.length, 0), 0)} memories)
-                                                    </span>
-                                                    <span class="ml-auto">
-                                                        <Icon name={collapsedProjects()[projGroup.project] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
-                                                    </span>
-                                                </button>
+                                                    <button
+                                                        class="flex items-center gap-2 flex-1 min-w-0"
+                                                        onClick={() => toggleProject(projGroup.project)}
+                                                        title={projectDescMap()[projGroup.project] || projGroup.project}
+                                                    >
+                                                        <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
+                                                        <div class="flex flex-col items-start min-w-0">
+                                                            <span class="text-sm font-bold text-neutral-200 truncate max-w-full">{shortPath(projGroup.project)}</span>
+                                                            <Show when={projectDescMap()[projGroup.project]}>
+                                                                <span class="text-[10px] text-neutral-500 leading-tight truncate max-w-full">{projectDescMap()[projGroup.project]}</span>
+                                                            </Show>
+                                                        </div>
+                                                        <span class="text-xs text-neutral-500 shrink-0">
+                                                            ({projGroup.domains.reduce((n, d) => n + d.categories.reduce((c, cat) => c + cat.memories.length, 0), 0)} memories)
+                                                        </span>
+                                                        <Icon name={collapsedProjects()[projGroup.project] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500 shrink-0" />
+                                                    </button>
+                                                    <Show when={projGroup.project !== '_global'}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const proj = (projects() || []).find((p: Project) => p.path === projGroup.project);
+                                                                if (proj) setDeleteProjectTarget(proj);
+                                                            }}
+                                                            class="p-1 rounded text-neutral-600 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover/proj:opacity-100 transition-opacity shrink-0"
+                                                            title="Delete project"
+                                                        >
+                                                            <i class="fa-solid fa-trash" style="font-size: 10px"></i>
+                                                        </button>
+                                                    </Show>
+                                                </div>
                                             </Show>
                                             <Show when={projGroup.project === '_' || !collapsedProjects()[projGroup.project]}>
                                                 <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} p-3 flex flex-col gap-3`}>

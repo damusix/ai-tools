@@ -43,9 +43,9 @@ export const ObservationCard: Component<{
                     </p>
                 </Show>
 
-                <div class="flex items-center justify-between text-[10px] text-neutral-600">
-                    <span>#{o.id} · {shortPath(o.project_path)}</span>
-                    <span>{fmtDate(o.created_at)}</span>
+                <div class="flex items-center justify-between text-[10px] text-neutral-600 gap-2">
+                    <span class="truncate min-w-0" title={`#${o.id} · ${shortPath(o.project_path)}`}>#{o.id} · {shortPath(o.project_path)}</span>
+                    <span class="shrink-0 whitespace-nowrap">{fmtDate(o.created_at)}</span>
                 </div>
             </div>
         </div>
