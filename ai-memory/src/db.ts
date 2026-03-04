@@ -39,6 +39,36 @@ export function getDb(): Database.Database {
     return initDb();
 }
 
+export const DOMAIN_SEED: [string, string, string][] = [
+    ['frontend', 'UI components, routing, state management, browser APIs, DOM', 'fa-display'],
+    ['styling', 'CSS, themes, layouts, responsive design, animations', 'fa-palette'],
+    ['backend', 'Server logic, business rules, middleware, request handling', 'fa-server'],
+    ['api', 'API design, REST/GraphQL contracts, versioning, endpoints', 'fa-globe'],
+    ['data', 'Database, schemas, queries, migrations, ORMs, caching', 'fa-database'],
+    ['auth', 'Authentication, authorization, sessions, tokens, RBAC', 'fa-key'],
+    ['testing', 'Test frameworks, strategies, fixtures, mocking, coverage', 'fa-vial'],
+    ['performance', 'Optimization, caching, profiling, lazy loading, bundle size', 'fa-gauge-high'],
+    ['security', 'Vulnerabilities, hardening, input validation, OWASP', 'fa-shield-halved'],
+    ['accessibility', 'a11y, WCAG, screen readers, keyboard navigation', 'fa-universal-access'],
+    ['infrastructure', 'Deployment, hosting, cloud, Docker, serverless', 'fa-cloud'],
+    ['devops', 'CI/CD, pipelines, environments, release process', 'fa-code-branch'],
+    ['monitoring', 'Logging, alerting, observability, error tracking', 'fa-chart-line'],
+    ['tooling', 'Build tools, linters, formatters, bundlers, dev environment', 'fa-wrench'],
+    ['git', 'Version control, branching strategy, hooks, workflows', 'fa-code-branch'],
+    ['dependencies', 'Package management, upgrades, compatibility, vendoring', 'fa-cubes'],
+    ['architecture', 'System design, patterns, module structure, conventions', 'fa-sitemap'],
+    ['integrations', 'Third-party services, SDKs, webhooks, external APIs', 'fa-plug'],
+    ['general', 'Cross-cutting concerns that don\'t fit elsewhere', 'fa-folder'],
+];
+
+export const CATEGORY_SEED: [string, string, string][] = [
+    ['decision', 'A choice made between options, with rationale', 'fa-gavel'],
+    ['pattern', 'A recurring approach established for the codebase', 'fa-repeat'],
+    ['preference', 'A user style or workflow preference', 'fa-sliders'],
+    ['fact', 'A discovered truth about the system or environment', 'fa-bookmark'],
+    ['solution', 'A working fix for a non-obvious problem', 'fa-puzzle-piece'],
+];
+
 function initSchema(db: Database.Database): void {
     db.exec(`
         CREATE TABLE IF NOT EXISTS projects (
@@ -142,42 +172,14 @@ function initSchema(db: Database.Database): void {
     `);
 
     // Seed default domains
-    const domainSeed: [string, string, string][] = [
-        ['frontend', 'UI components, routing, state management, browser APIs, DOM', 'fa-display'],
-        ['styling', 'CSS, themes, layouts, responsive design, animations', 'fa-palette'],
-        ['backend', 'Server logic, business rules, middleware, request handling', 'fa-server'],
-        ['api', 'API design, REST/GraphQL contracts, versioning, endpoints', 'fa-globe'],
-        ['data', 'Database, schemas, queries, migrations, ORMs, caching', 'fa-database'],
-        ['auth', 'Authentication, authorization, sessions, tokens, RBAC', 'fa-key'],
-        ['testing', 'Test frameworks, strategies, fixtures, mocking, coverage', 'fa-vial'],
-        ['performance', 'Optimization, caching, profiling, lazy loading, bundle size', 'fa-gauge-high'],
-        ['security', 'Vulnerabilities, hardening, input validation, OWASP', 'fa-shield-halved'],
-        ['accessibility', 'a11y, WCAG, screen readers, keyboard navigation', 'fa-universal-access'],
-        ['infrastructure', 'Deployment, hosting, cloud, Docker, serverless', 'fa-cloud'],
-        ['devops', 'CI/CD, pipelines, environments, release process', 'fa-code-branch'],
-        ['monitoring', 'Logging, alerting, observability, error tracking', 'fa-chart-line'],
-        ['tooling', 'Build tools, linters, formatters, bundlers, dev environment', 'fa-wrench'],
-        ['git', 'Version control, branching strategy, hooks, workflows', 'fa-code-branch'],
-        ['dependencies', 'Package management, upgrades, compatibility, vendoring', 'fa-cubes'],
-        ['architecture', 'System design, patterns, module structure, conventions', 'fa-sitemap'],
-        ['integrations', 'Third-party services, SDKs, webhooks, external APIs', 'fa-plug'],
-        ['general', 'Cross-cutting concerns that don\'t fit elsewhere', 'fa-folder'],
-    ];
     const insertDomainStmt = db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)');
-    for (const [name, desc, icon] of domainSeed) {
+    for (const [name, desc, icon] of DOMAIN_SEED) {
         insertDomainStmt.run(name, desc, icon);
     }
 
     // Seed default categories
-    const categorySeed: [string, string, string][] = [
-        ['decision', 'A choice made between options, with rationale', 'fa-gavel'],
-        ['pattern', 'A recurring approach established for the codebase', 'fa-repeat'],
-        ['preference', 'A user style or workflow preference', 'fa-sliders'],
-        ['fact', 'A discovered truth about the system or environment', 'fa-bookmark'],
-        ['solution', 'A working fix for a non-obvious problem', 'fa-puzzle-piece'],
-    ];
     const insertCategoryStmt = db.prepare('INSERT OR IGNORE INTO categories (name, description, icon) VALUES (?, ?, ?)');
-    for (const [name, desc, icon] of categorySeed) {
+    for (const [name, desc, icon] of CATEGORY_SEED) {
         insertCategoryStmt.run(name, desc, icon);
     }
 
@@ -540,6 +542,28 @@ export function forceDeleteCategory(name: string): number {
         return count;
     });
     return doDelete();
+}
+
+export function restoreDefaultDomains(): number {
+    const db = getDb();
+    const stmt = db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)');
+    let restored = 0;
+    for (const [name, desc, icon] of DOMAIN_SEED) {
+        const result = stmt.run(name, desc, icon);
+        if (result.changes > 0) restored++;
+    }
+    return restored;
+}
+
+export function restoreDefaultCategories(): number {
+    const db = getDb();
+    const stmt = db.prepare('INSERT OR IGNORE INTO categories (name, description, icon) VALUES (?, ?, ?)');
+    let restored = 0;
+    for (const [name, desc, icon] of CATEGORY_SEED) {
+        const result = stmt.run(name, desc, icon);
+        if (result.changes > 0) restored++;
+    }
+    return restored;
 }
 
 // ── Tag queries ─────────────────────────────────────────────────

@@ -28,6 +28,8 @@ import {
     forceDeleteCategory,
     listDomainsRaw,
     listCategoriesRaw,
+    restoreDefaultDomains,
+    restoreDefaultCategories,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -184,6 +186,13 @@ export function createApp(): Hono {
         }
     });
 
+    app.post('/api/domains/restore-defaults', (c) => {
+        const restored = restoreDefaultDomains();
+        log('api', `Restored default domains (${restored} added)`);
+        broadcast('counts:updated', {});
+        return c.json({ restored });
+    });
+
     app.get('/api/categories', (c) => {
         const project = c.req.query('project');
         return c.json(listCategories(project));
@@ -228,6 +237,13 @@ export function createApp(): Hono {
         } catch (err: any) {
             return c.json({ error: err.message }, 400);
         }
+    });
+
+    app.post('/api/categories/restore-defaults', (c) => {
+        const restored = restoreDefaultCategories();
+        log('api', `Restored default categories (${restored} added)`);
+        broadcast('counts:updated', {});
+        return c.json({ restored });
     });
 
     app.get('/api/observations', (c) => {

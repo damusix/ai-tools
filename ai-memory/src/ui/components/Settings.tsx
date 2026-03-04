@@ -462,6 +462,9 @@ const AiGeneratePanel: Component<{
             </div>
 
             <Show when={props.results.length === 0}>
+                <p class="text-[11px] text-purple-300/60 mb-2">
+                    Describe your project or use case and AI will suggest {props.type === 'domain' ? 'domains' : 'categories'} tailored to it. You can approve or reject each suggestion.
+                </p>
                 <div class="flex gap-2">
                     <textarea
                         value={props.prompt}
@@ -738,6 +741,9 @@ const Settings: Component<{
 
                     {/* Domains tab */}
                     <Show when={tab() === 'domains'}>
+                        <p class="text-xs text-neutral-500 mb-3 leading-relaxed">
+                            Domains organize memories by technical area (e.g. frontend, backend, data). When Claude saves a memory, it assigns a domain to help you filter and search later.
+                        </p>
                         <div class="flex items-center gap-2 mb-3">
                             <Show when={aiPromptMode() !== 'domain'}>
                                 <button
@@ -772,6 +778,9 @@ const Settings: Component<{
 
                     {/* Categories tab */}
                     <Show when={tab() === 'categories'}>
+                        <p class="text-xs text-neutral-500 mb-3 leading-relaxed">
+                            Categories classify the type of knowledge stored (e.g. decision, pattern, solution). They help distinguish why something was remembered.
+                        </p>
                         <div class="flex items-center gap-2 mb-3">
                             <Show when={aiPromptMode() !== 'category'}>
                                 <button
