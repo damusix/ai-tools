@@ -32,6 +32,11 @@ import {
     updateCategory,
     deleteCategory,
     getProjectsWithStaleObservations,
+    deleteProject,
+    updateProjectMeta,
+    forceDeleteDomain,
+    forceDeleteCategory,
+    listProjects,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -326,5 +331,68 @@ describe('stale observations', () => {
             "INSERT INTO observations (project_id, content, source_summary, processed, created_at) VALUES (?, ?, ?, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'))"
         ).run(proj.id, 'old obs', 'src');
         expect(getProjectsWithStaleObservations(0)).toEqual([]);
+    });
+});
+
+describe('deleteProject', () => {
+    it('deletes a project and all its data', () => {
+        const proj = getOrCreateProject('/test/delete-me');
+        insertMemory(proj.id, 'test', '', 'fact', 3, '');
+        insertObservation(proj.id, 'obs', 'src');
+        const result = deleteProject(proj.id);
+        expect(result.memories).toBe(1);
+        expect(result.observations).toBe(1);
+        const all = listProjects();
+        expect(all.find((p: any) => p.path === '/test/delete-me')).toBeUndefined();
+    });
+
+    it('throws when deleting _global', () => {
+        const proj = getOrCreateProject('_global');
+        expect(() => deleteProject(proj.id)).toThrow('Cannot delete the global project');
+    });
+});
+
+describe('forceDeleteDomain', () => {
+    it('removes domain and deletes memories', () => {
+        insertDomain('temp-dom', 'temp', 'fa-folder');
+        const proj = getOrCreateProject('/test/force-dom');
+        insertMemory(proj.id, 'test', '', 'fact', 3, '', 'temp-dom');
+        const cleared = forceDeleteDomain('temp-dom');
+        expect(cleared).toBe(1);
+        const doms = listDomainsRaw();
+        expect(doms.find(d => d.name === 'temp-dom')).toBeUndefined();
+    });
+});
+
+describe('forceDeleteCategory', () => {
+    it('removes category and deletes memories', () => {
+        insertCategory('temp-cat', 'temp', 'fa-folder');
+        const proj = getOrCreateProject('/test/force-cat');
+        insertMemory(proj.id, 'test', '', 'temp-cat', 3, '');
+        const cleared = forceDeleteCategory('temp-cat');
+        expect(cleared).toBe(1);
+        const cats = listCategoriesRaw();
+        expect(cats.find(c => c.name === 'temp-cat')).toBeUndefined();
+    });
+});
+
+describe('memory reason', () => {
+    it('stores and retrieves reason', () => {
+        const proj = getOrCreateProject('/test/reason');
+        const id = insertMemory(proj.id, 'test', '', 'fact', 3, '1,2', undefined, 'Synthesized from 2 observations about routing');
+        const mems = listMemories('/test/reason');
+        const mem = mems.find((m: any) => m.id === id);
+        expect(mem.reason).toBe('Synthesized from 2 observations about routing');
+    });
+});
+
+describe('project enrichment', () => {
+    it('updateProjectMeta sets icon and description', () => {
+        const proj = getOrCreateProject('/test/enrich');
+        updateProjectMeta(proj.id, 'fa-rocket', 'A rocket science project');
+        const all = listProjects();
+        const p = all.find((pr: any) => pr.path === '/test/enrich');
+        expect(p.icon).toBe('fa-rocket');
+        expect(p.description).toBe('A rocket science project');
     });
 });
