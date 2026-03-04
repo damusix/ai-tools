@@ -549,15 +549,19 @@ const App: Component = () => {
                 open={transferOpen()}
                 projects={projects() || []}
                 onClose={() => setTransferOpen(false)}
-                onTransfer={async (from, to) => {
-                    const res = await fetch('/api/projects/transfer', {
+                onTransfer={async (targetPath, sourcePaths) => {
+                    const res = await fetch('/api/projects/transfer-batch', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ from, to }),
+                        body: JSON.stringify({ targetPath, sourcePaths }),
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Transfer failed');
-                    showToast(`Transferred ${data.memories} memories, ${data.observations} observations`);
+                    const total = data.results.reduce((acc: any, r: any) => ({
+                        memories: acc.memories + (r.memories || 0),
+                        observations: acc.observations + (r.observations || 0),
+                    }), { memories: 0, observations: 0 });
+                    showToast(`Transferred ${total.memories} memories, ${total.observations} observations from ${sourcePaths.length} project(s)`);
                     refresh();
                 }}
             />
