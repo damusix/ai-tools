@@ -5,6 +5,7 @@ import { Portal } from 'solid-js/web';
 const Overlay: Component<{
     open: boolean;
     onClose?: () => void;
+    zIndex?: number;
     children: JSX.Element;
 }> = (props) => {
     createEffect(() => {
@@ -20,7 +21,8 @@ const Overlay: Component<{
         <Show when={props.open}>
             <Portal>
                 <div
-                    class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center"
+                    class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center"
+                    style={{ 'z-index': props.zIndex ?? 50 }}
                     onClick={(e) => {
                         if (e.target === e.currentTarget && props.onClose) props.onClose();
                     }}

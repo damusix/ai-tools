@@ -1,15 +1,21 @@
-import { type Component } from 'solid-js';
+import { type Component, Show } from 'solid-js';
 import Overlay from './Overlay';
 
 export const ConfirmModal: Component<{
     open: boolean;
     message: string;
+    title?: string;
+    confirmLabel?: string;
+    confirmClass?: string;
     onConfirm: () => void;
     onCancel: () => void;
 }> = (props) => {
     return (
-        <Overlay open={props.open} onClose={props.onCancel}>
+        <Overlay open={props.open} onClose={props.onCancel} zIndex={60}>
             <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+                <Show when={props.title}>
+                    <h3 class="text-sm font-semibold text-neutral-200 mb-2">{props.title}</h3>
+                </Show>
                 <p class="text-sm text-neutral-300 mb-4">{props.message}</p>
                 <div class="flex justify-end gap-3">
                     <button
@@ -19,10 +25,10 @@ export const ConfirmModal: Component<{
                         Cancel
                     </button>
                     <button
-                        class="text-sm px-3 py-1.5 rounded bg-red-500/10 text-red-400/80 hover:bg-red-500/20 hover:text-red-300"
+                        class={props.confirmClass || "text-sm px-3 py-1.5 rounded bg-red-500/10 text-red-400/80 hover:bg-red-500/20 hover:text-red-300"}
                         onClick={props.onConfirm}
                     >
-                        Delete
+                        {props.confirmLabel || 'Delete'}
                     </button>
                 </div>
             </div>
