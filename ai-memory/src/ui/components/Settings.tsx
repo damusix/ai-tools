@@ -288,7 +288,7 @@ const TaxonomySection: Component<{
     };
 
     const handleUpdate = async (data: { name: string; description: string; icon: string }) => {
-        const endpoint = props.type === 'domain' ? `/api/domains/${data.name}` : `/api/categories/${data.name}`;
+        const endpoint = props.type === 'domain' ? `/api/domains/${encodeURIComponent(data.name)}` : `/api/categories/${encodeURIComponent(data.name)}`;
         const res = await fetch(endpoint, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -305,7 +305,7 @@ const TaxonomySection: Component<{
     };
 
     const handleDelete = async (name: string) => {
-        const endpoint = props.type === 'domain' ? `/api/domains/${name}` : `/api/categories/${name}`;
+        const endpoint = props.type === 'domain' ? `/api/domains/${encodeURIComponent(name)}` : `/api/categories/${encodeURIComponent(name)}`;
         const res = await fetch(endpoint, { method: 'DELETE' });
         if (res.ok) {
             props.showToast(`${props.type} "${name}" deleted`);

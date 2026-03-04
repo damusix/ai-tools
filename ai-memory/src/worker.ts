@@ -460,10 +460,13 @@ async function enrichProjects(): Promise<void> {
             if (!jsonMatch) continue;
 
             const parsed = JSON.parse(jsonMatch[0]) as { description: string; icon: string };
-            if (parsed.description && parsed.icon) {
-                updateProjectMeta(proj.id, parsed.icon, parsed.description);
-                log('worker', `Enriched project "${proj.path}": ${parsed.icon} — ${parsed.description}`);
+            if (parsed.description?.trim() && parsed.icon) {
+                updateProjectMeta(proj.id, parsed.icon, parsed.description.trim());
+                log('worker', `Enriched project "${proj.path}": ${parsed.icon} — ${parsed.description.trim()}`);
                 broadcast('counts:updated', {});
+            } else {
+                // Set a placeholder to prevent infinite re-enrichment attempts
+                updateProjectMeta(proj.id, proj.icon || 'fa-folder-open', '(auto-enrichment pending)');
             }
         } catch (err) {
             logError('worker', `Failed to enrich project ${proj.path}: ${err}`);

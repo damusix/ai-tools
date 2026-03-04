@@ -207,16 +207,20 @@ export function deleteProject(projectId: number): { memories: number; observatio
     if (!proj) throw new Error(`Project ${projectId} not found`);
     if (proj.path === '_global') throw new Error('Cannot delete the global project');
 
-    const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(projectId) as any).c;
-    const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(projectId) as any).c;
+    const doDelete = db.transaction(() => {
+        const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(projectId) as any).c;
+        const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(projectId) as any).c;
 
-    db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(projectId);
-    db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(projectId);
-    db.prepare('DELETE FROM memories WHERE project_id = ?').run(projectId);
-    db.prepare('DELETE FROM observations WHERE project_id = ?').run(projectId);
-    db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+        db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM memories WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM observations WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
 
-    return { memories: memCount, observations: obsCount };
+        return { memories: memCount, observations: obsCount };
+    });
+
+    return doDelete();
 }
 
 export function updateProjectMeta(projectId: number, icon: string, description: string): void {
@@ -469,12 +473,15 @@ export function deleteDomain(name: string): void {
 
 export function forceDeleteDomain(name: string): number {
     const db = getDb();
-    const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE domain = ?').get(name) as any).c;
-    if (count > 0) {
-        db.prepare("DELETE FROM memories WHERE domain = ?").run(name);
-    }
-    db.prepare('DELETE FROM domains WHERE name = ?').run(name);
-    return count;
+    const doDelete = db.transaction(() => {
+        const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE domain = ?').get(name) as any).c;
+        if (count > 0) {
+            db.prepare("DELETE FROM memories WHERE domain = ?").run(name);
+        }
+        db.prepare('DELETE FROM domains WHERE name = ?').run(name);
+        return count;
+    });
+    return doDelete();
 }
 
 // ── Category queries ────────────────────────────────────────────
@@ -524,12 +531,15 @@ export function deleteCategory(name: string): void {
 
 export function forceDeleteCategory(name: string): number {
     const db = getDb();
-    const count = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE category = ?").get(name) as any).c;
-    if (count > 0) {
-        db.prepare("DELETE FROM memories WHERE category = ?").run(name);
-    }
-    db.prepare('DELETE FROM categories WHERE name = ?').run(name);
-    return count;
+    const doDelete = db.transaction(() => {
+        const count = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE category = ?").get(name) as any).c;
+        if (count > 0) {
+            db.prepare("DELETE FROM memories WHERE category = ?").run(name);
+        }
+        db.prepare('DELETE FROM categories WHERE name = ?').run(name);
+        return count;
+    });
+    return doDelete();
 }
 
 // ── Tag queries ─────────────────────────────────────────────────

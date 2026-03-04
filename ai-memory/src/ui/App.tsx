@@ -76,7 +76,7 @@ const App: Component = () => {
     const [helpTopic, setHelpTopic] = createSignal('');
     const [stopConfirm, setStopConfirm] = createSignal(false);
     const [stopping, setStopping] = createSignal(false);
-    const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<any>(null);
+    const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
 
     const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>({});

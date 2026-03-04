@@ -111,6 +111,9 @@ export function createApp(): Hono {
     app.put('/api/projects/:id/meta', async (c) => {
         const id = Number(c.req.param('id'));
         const { icon, description } = await c.req.json();
+        if (typeof icon !== 'string' || typeof description !== 'string') {
+            return c.json({ error: 'icon and description must be strings' }, 400);
+        }
         updateProjectMeta(id, icon, description);
         log('api', `Project ${id} meta updated`);
         return c.json({ updated: true });
@@ -171,10 +174,14 @@ export function createApp(): Hono {
 
     app.delete('/api/domains/:name/force', (c) => {
         const name = c.req.param('name');
-        const deleted = forceDeleteDomain(name);
-        log('api', `Domain "${name}" force-deleted (${deleted} memories deleted)`);
-        broadcast('counts:updated', {});
-        return c.json({ deleted: true, memoriesDeleted: deleted });
+        try {
+            const deleted = forceDeleteDomain(name);
+            log('api', `Domain "${name}" force-deleted (${deleted} memories deleted)`);
+            broadcast('counts:updated', {});
+            return c.json({ deleted: true, memoriesDeleted: deleted });
+        } catch (err: any) {
+            return c.json({ error: err.message }, 400);
+        }
     });
 
     app.get('/api/categories', (c) => {
@@ -213,10 +220,14 @@ export function createApp(): Hono {
 
     app.delete('/api/categories/:name/force', (c) => {
         const name = c.req.param('name');
-        const deleted = forceDeleteCategory(name);
-        log('api', `Category "${name}" force-deleted (${deleted} memories deleted)`);
-        broadcast('counts:updated', {});
-        return c.json({ deleted: true, memoriesDeleted: deleted });
+        try {
+            const deleted = forceDeleteCategory(name);
+            log('api', `Category "${name}" force-deleted (${deleted} memories deleted)`);
+            broadcast('counts:updated', {});
+            return c.json({ deleted: true, memoriesDeleted: deleted });
+        } catch (err: any) {
+            return c.json({ error: err.message }, 400);
+        }
     });
 
     app.get('/api/observations', (c) => {
@@ -424,6 +435,7 @@ export function createApp(): Hono {
     app.post('/api/taxonomy/generate', async (c) => {
         const { type, prompt: userPrompt } = await c.req.json();
         if (!type || !userPrompt) return c.json({ error: 'type and prompt required' }, 400);
+        if (type !== 'domain' && type !== 'category') return c.json({ error: 'type must be "domain" or "category"' }, 400);
 
         const existing = type === 'domain'
             ? listDomainsRaw().map(d => d.name).join(', ')
