@@ -23,6 +23,7 @@ import {
     incrementSkippedCount,
     deleteOverSkippedObservations,
     getProjectsWithStaleObservations,
+    updateProjectMeta,
 } from './db.js';
 import { broadcast } from './sse.js';
 import { log, error as logError } from './logger.js';
@@ -157,6 +158,7 @@ export function startWorker(): void {
         }
     }, getConfig().worker.backfillStartupDelayMs);
 
+    let pollCount = 0;
     setInterval(async () => {
         if (processing) return;
         processing = true;
@@ -169,6 +171,10 @@ export function startWorker(): void {
             if (purged > 0) {
                 log('worker', `Purged ${purged} stale processed observations`);
                 broadcast('counts:updated', {});
+            }
+            pollCount++;
+            if (pollCount % 10 === 0) {
+                await enrichProjects();
             }
         } catch (err) {
             logError('worker', `Error: ${err}`);
@@ -411,6 +417,58 @@ export async function runCleanup(projectId?: number): Promise<{ deleted: { obser
     }
 
     return { deleted: { observations: totalObs, memories: totalMem } };
+}
+
+// ── Project enrichment ──────────────────────────────────────────
+
+async function enrichProjects(): Promise<void> {
+    const db = getDb();
+    const candidates = db.prepare(`
+        SELECT p.id, p.path, p.icon, p.description,
+            (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as mem_count
+        FROM projects p
+        WHERE p.path != '_global'
+          AND p.description = ''
+          AND (SELECT COUNT(*) FROM memories WHERE project_id = p.id) >= 5
+    `).all() as { id: number; path: string; mem_count: number }[];
+
+    for (const proj of candidates) {
+        try {
+            const memories = listMemories(proj.path, undefined, undefined, 10);
+            const prompt = loadPrompt('project-enrich', {
+                PROJECT_PATH: proj.path,
+                MEMORIES: JSON.stringify(memories.map((m: any) => ({
+                    content: m.content, domain: m.domain, category: m.category,
+                })), null, 2),
+            });
+
+            const { query } = await import('@anthropic-ai/claude-agent-sdk');
+
+            let result = '';
+            for await (const message of query({
+                prompt,
+                options: {
+                    allowedTools: [],
+                    permissionMode: 'bypassPermissions',
+                    model: 'haiku',
+                },
+            })) {
+                if ('result' in message) result = message.result as string;
+            }
+
+            const jsonMatch = result.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) continue;
+
+            const parsed = JSON.parse(jsonMatch[0]) as { description: string; icon: string };
+            if (parsed.description && parsed.icon) {
+                updateProjectMeta(proj.id, parsed.icon, parsed.description);
+                log('worker', `Enriched project "${proj.path}": ${parsed.icon} — ${parsed.description}`);
+                broadcast('counts:updated', {});
+            }
+        } catch (err) {
+            logError('worker', `Failed to enrich project ${proj.path}: ${err}`);
+        }
+    }
 }
 
 async function synthesizeMemories(
