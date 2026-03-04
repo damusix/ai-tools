@@ -48,6 +48,13 @@ export const MemoryCard: Component<{
 
             <p class="text-sm text-neutral-300 leading-relaxed flex-1 overflow-y-auto max-h-40 break-words">{m.content}</p>
 
+            <Show when={m.reason}>
+                <p class="text-[11px] text-neutral-500 italic mt-1 flex items-center gap-1">
+                    <i class="fa-solid fa-circle-info" style="font-size: 10px"></i>
+                    {m.reason}
+                </p>
+            </Show>
+
             <div class="mt-auto pt-3">
                 <Show when={m.tags}>
                     <div class="flex flex-wrap gap-1.5 mb-2">

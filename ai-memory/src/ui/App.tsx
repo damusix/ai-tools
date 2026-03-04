@@ -75,6 +75,8 @@ const App: Component = () => {
     const [taxonomyOpen, setTaxonomyOpen] = createSignal(false);
     const [transferOpen, setTransferOpen] = createSignal(false);
     const [helpTopic, setHelpTopic] = createSignal('');
+    const [stopConfirm, setStopConfirm] = createSignal(false);
+    const [stopping, setStopping] = createSignal(false);
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
 
     const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>({});
@@ -144,6 +146,19 @@ const App: Component = () => {
             }).catch(() => setTimeout(poll, 500));
         };
         setTimeout(poll, 500);
+    };
+
+    const handleStop = async () => {
+        setStopping(true);
+        setStopConfirm(false);
+        try {
+            await fetch('/api/stop', { method: 'POST' });
+            showToast('Server stopping...');
+        } catch {
+            showToast('Stop failed');
+        } finally {
+            setStopping(false);
+        }
     };
 
     // SSE real-time updates
@@ -342,6 +357,13 @@ const App: Component = () => {
                     >
                         <Icon name="rotate-cw" size={14} class={restarting() ? 'animate-spin' : ''} />
                     </button>
+                    <button
+                        onClick={() => setStopConfirm(true)}
+                        class="px-2 py-1.5 text-xs rounded bg-red-900/30 hover:bg-red-900/50 text-red-400 transition-colors flex items-center"
+                        title="Stop the ai-memory server"
+                    >
+                        <i class="fa-solid fa-stop" style="font-size: 14px"></i>
+                    </button>
                     <ProjectSelector
                         projects={projects() || []}
                         selected={project()}
@@ -503,6 +525,16 @@ const App: Component = () => {
                 message={`Delete ${deleteTarget()?.type?.slice(0, -1)} #${deleteTarget()?.id}?`}
                 onConfirm={confirmDelete}
                 onCancel={() => setDeleteTarget(null)}
+            />
+
+            <ConfirmModal
+                open={stopConfirm()}
+                title="Stop Server"
+                message="Stop the server? It will restart automatically with your next Claude Code session."
+                confirmLabel="Stop"
+                confirmClass="text-sm px-3 py-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300"
+                onConfirm={handleStop}
+                onCancel={() => setStopConfirm(false)}
             />
 
             <TerminalLogs open={logsOpen()} onClose={() => setLogsOpen(false)} />
