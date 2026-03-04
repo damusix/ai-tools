@@ -1,40 +1,48 @@
 # claude-marketplace
 
-A collection of plugins, skills, and tools for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Install one marketplace, get two practical Claude Code plugins: persistent memory and safer Bash auto-approval.
 
+## Quickstart
 
-## Plugins
+Add this marketplace, then install both plugins:
 
-### [ai-memory](./ai-memory)
+```shell
+/plugin marketplace add damusix/ai-tools
+/plugin install ai-memory@damusix-ai-tools
+/plugin install auto-approve-compound-bash@damusix-ai-tools
+```
 
-Persistent memory for Claude Code. Automatically captures observations from your sessions and synthesizes them into memories that get injected into future sessions — so Claude already knows your project's conventions, decisions, and context.
+## What you get
 
-- Runs entirely locally — your data never leaves your machine
-- Single shared server across all Claude Code sessions
-- Background worker extracts observations and synthesizes memories
-- SolidJS dashboard for browsing and managing memories
-- MCP tools for saving, searching, and organizing memories
-- Slash commands: `/remember`, `/forget`
+### `ai-memory`
 
-See the [ai-memory README](./ai-memory/README.md) for dashboard and CLI screenshots.
+Give Claude long-term project memory across sessions, with local-first storage and tools to organize context.
 
+- Captures observations and synthesizes reusable memories
+- Shares one memory service across Claude Code sessions
+- Provides MCP tools for saving, searching, and organizing memory
+- Includes dashboard UI to browse and manage memories
+- Adds `/remember` and `/forget` slash commands
 
-### [cc-auto-approve-fix](./cc-auto-approve-fix)
+Docs: [`ai-memory/README.md`](./ai-memory/README.md)
 
-Auto-approves compound Bash commands in Claude Code by parsing command segments and checking each segment against your allow/deny rules.
+### `auto-approve-compound-bash` (`cc-auto-approve-fix` source)
 
-- Native Go parser (`mvdan.cc/sh/v3/syntax`) for robust shell AST handling
-- Supports compound operators, substitutions, subshells, and `bash/sh/zsh -c` recursion
-- Keep Claude in control on uncertainty (fallthrough behavior)
-- Optional explainability output (`--explain`) for clear non-allow reasons
-- Includes `simulate` mode for local decision testing and `doctor` mode for settings diagnostics
-- Ships with prebuilt binaries for `darwin/linux` and `amd64/arm64`
+Auto-approve compound Bash commands safely by parsing each command segment against allow/deny rules.
 
+- Uses a native Go shell parser (`mvdan.cc/sh/v3/syntax`) for AST-based checks
+- Handles compound operators, substitutions, subshells, and nested `bash/sh/zsh -c`
+- Falls through safely when uncertainty is detected
+- Supports `--explain`, `simulate`, and `doctor` workflows
+- Ships prebuilt binaries for `darwin/linux` and `amd64/arm64`
 
-## Installation
+Docs: [`cc-auto-approve-fix/README.md`](./cc-auto-approve-fix/README.md)
 
-Each plugin has its own setup. See the plugin's README for instructions.
+## Why this marketplace
 
+- One setup path gives you both plugins immediately
+- Plugin names are stable in the `damusix-ai-tools` marketplace catalog
+- Memory stays local and command auto-approval remains rule-driven
 
 ## License
 

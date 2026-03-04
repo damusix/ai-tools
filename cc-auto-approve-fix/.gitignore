@@ -1,2 +1,3 @@
 .approve-compound-bash-current
 tmp/
+.claude/settings.local.json
