@@ -77,6 +77,7 @@ const App: Component = () => {
     const [helpTopic, setHelpTopic] = createSignal('');
     const [stopConfirm, setStopConfirm] = createSignal(false);
     const [stopping, setStopping] = createSignal(false);
+    const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<any>(null);
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
 
     const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>({});
@@ -159,6 +160,23 @@ const App: Component = () => {
         } finally {
             setStopping(false);
         }
+    };
+
+    const confirmDeleteProject = async () => {
+        const target = deleteProjectTarget();
+        if (!target) return;
+        try {
+            const res = await api<{ memories: number; observations: number }>(
+                `/api/projects/${target.id}`,
+                { method: 'DELETE' },
+            );
+            showToast(`Deleted project "${shortPath(target.path)}" (${res.memories} memories, ${res.observations} observations)`);
+            selectProject('');
+            refresh();
+        } catch {
+            showToast('Delete failed');
+        }
+        setDeleteProjectTarget(null);
     };
 
     // SSE real-time updates
@@ -368,6 +386,10 @@ const App: Component = () => {
                         projects={projects() || []}
                         selected={project()}
                         onChange={selectProject}
+                        onDeleteProject={() => {
+                            const proj = (projects() || []).find((p: any) => p.path === project());
+                            if (proj) setDeleteProjectTarget(proj);
+                        }}
                     />
                 </div>
             </header>
@@ -535,6 +557,15 @@ const App: Component = () => {
                 confirmClass="text-sm px-3 py-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300"
                 onConfirm={handleStop}
                 onCancel={() => setStopConfirm(false)}
+            />
+
+            <ConfirmModal
+                open={!!deleteProjectTarget()}
+                title="Delete Project"
+                message={`Delete project "${deleteProjectTarget() ? shortPath(deleteProjectTarget().path) : ''}"? This will permanently delete ${deleteProjectTarget()?.memory_count || 0} memories and ${deleteProjectTarget()?.observation_count || 0} observations.`}
+                confirmLabel="Delete Project"
+                onConfirm={confirmDeleteProject}
+                onCancel={() => setDeleteProjectTarget(null)}
             />
 
             <TerminalLogs open={logsOpen()} onClose={() => setLogsOpen(false)} />

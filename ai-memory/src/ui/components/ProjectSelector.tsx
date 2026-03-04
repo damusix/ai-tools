@@ -1,10 +1,11 @@
-import { For, createMemo, createEffect, type Component } from 'solid-js';
+import { For, Show, createMemo, createEffect, type Component } from 'solid-js';
 import type { Project } from '../App';
 
 export const ProjectSelector: Component<{
     projects: Project[];
     selected: string;
     onChange: (path: string) => void;
+    onDeleteProject?: () => void;
 }> = (props) => {
     let selectRef!: HTMLSelectElement;
 
@@ -42,6 +43,15 @@ export const ProjectSelector: Component<{
                     {(p) => <option value={p.path}>{label(p)}</option>}
                 </For>
             </select>
+            <Show when={props.selected && props.selected !== '_global'}>
+                <button
+                    onClick={() => props.onDeleteProject?.()}
+                    class="px-1.5 py-1.5 text-neutral-500 hover:text-red-400 rounded hover:bg-red-400/10 transition-colors"
+                    title="Delete this project"
+                >
+                    <i class="fa-solid fa-trash" style="font-size: 11px"></i>
+                </button>
+            </Show>
         </div>
     );
 };
