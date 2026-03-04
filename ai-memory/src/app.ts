@@ -22,6 +22,12 @@ import {
     deleteCategory,
     searchMemories,
     transferProject,
+    deleteProject,
+    updateProjectMeta,
+    forceDeleteDomain,
+    forceDeleteCategory,
+    listDomainsRaw,
+    listCategoriesRaw,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -90,6 +96,26 @@ export function createApp(): Hono {
         return c.json(listProjects());
     });
 
+    app.delete('/api/projects/:id', (c) => {
+        const id = Number(c.req.param('id'));
+        try {
+            const result = deleteProject(id);
+            log('api', `Project ${id} deleted (${result.memories} memories, ${result.observations} observations)`);
+            broadcast('counts:updated', {});
+            return c.json({ deleted: true, ...result });
+        } catch (err: any) {
+            return c.json({ error: err.message }, 400);
+        }
+    });
+
+    app.put('/api/projects/:id/meta', async (c) => {
+        const id = Number(c.req.param('id'));
+        const { icon, description } = await c.req.json();
+        updateProjectMeta(id, icon, description);
+        log('api', `Project ${id} meta updated`);
+        return c.json({ updated: true });
+    });
+
     app.get('/api/memories', (c) => {
         const project = c.req.query('project');
         const tag = c.req.query('tag');
@@ -143,6 +169,14 @@ export function createApp(): Hono {
         }
     });
 
+    app.delete('/api/domains/:name/force', (c) => {
+        const name = c.req.param('name');
+        const deleted = forceDeleteDomain(name);
+        log('api', `Domain "${name}" force-deleted (${deleted} memories deleted)`);
+        broadcast('counts:updated', {});
+        return c.json({ deleted: true, memoriesDeleted: deleted });
+    });
+
     app.get('/api/categories', (c) => {
         const project = c.req.query('project');
         return c.json(listCategories(project));
@@ -175,6 +209,14 @@ export function createApp(): Hono {
         } catch (err: any) {
             return c.json({ error: err.message }, 409);
         }
+    });
+
+    app.delete('/api/categories/:name/force', (c) => {
+        const name = c.req.param('name');
+        const deleted = forceDeleteCategory(name);
+        log('api', `Category "${name}" force-deleted (${deleted} memories deleted)`);
+        broadcast('counts:updated', {});
+        return c.json({ deleted: true, memoriesDeleted: deleted });
     });
 
     app.get('/api/observations', (c) => {
@@ -259,6 +301,26 @@ export function createApp(): Hono {
         } catch (err: any) {
             return c.json({ error: err.message }, 404);
         }
+    });
+
+    app.post('/api/projects/transfer-batch', async (c) => {
+        const { targetPath, sourcePaths } = await c.req.json();
+        if (!targetPath || !Array.isArray(sourcePaths) || sourcePaths.length === 0) {
+            return c.json({ error: 'targetPath and sourcePaths[] required' }, 400);
+        }
+
+        const results = [];
+        for (const fromPath of sourcePaths) {
+            try {
+                const result = transferProject(fromPath, targetPath);
+                results.push({ from: fromPath, ...result });
+            } catch (err: any) {
+                results.push({ from: fromPath, error: err.message });
+            }
+        }
+
+        broadcast('counts:updated', {});
+        return c.json({ results });
     });
 
     // ── Logs endpoint ────────────────────────────────────────────────
@@ -357,6 +419,49 @@ export function createApp(): Hono {
             process.exit(0);
         }, getConfig().server.restartDelayMs);
         return c.json({ restarting: true });
+    });
+
+    app.post('/api/taxonomy/generate', async (c) => {
+        const { type, prompt: userPrompt } = await c.req.json();
+        if (!type || !userPrompt) return c.json({ error: 'type and prompt required' }, 400);
+
+        const existing = type === 'domain'
+            ? listDomainsRaw().map(d => d.name).join(', ')
+            : listCategoriesRaw().map(cat => cat.name).join(', ');
+
+        const systemPrompt = `You generate taxonomy items for a memory management system.
+The user wants to create ${type}s. Existing ${type}s: ${existing}
+
+Return ONLY a JSON array of objects with: name (lowercase, kebab-case), description (1 sentence), icon (Font Awesome class like "fa-rocket").
+Generate 3-8 items. Do not duplicate existing ${type}s.`;
+
+        try {
+            const { query } = await import('@anthropic-ai/claude-agent-sdk');
+            let result = '';
+            for await (const message of query({
+                prompt: `${systemPrompt}\n\n${userPrompt}`,
+                options: {
+                    allowedTools: [],
+                    permissionMode: 'bypassPermissions',
+                    model: 'haiku',
+                },
+            })) {
+                if ('result' in message) result = message.result as string;
+            }
+            const match = result.match(/\[[\s\S]*\]/);
+            const items = match ? JSON.parse(match[0]) : [];
+            return c.json({ items });
+        } catch (err: any) {
+            return c.json({ error: err.message }, 500);
+        }
+    });
+
+    app.post('/api/stop', (c) => {
+        log('server', 'Stop requested — server will shut down');
+        setTimeout(() => {
+            process.exit(0);
+        }, getConfig().server.restartDelayMs);
+        return c.json({ stopping: true });
     });
 
     // ── SSE endpoint for real-time UI updates ───────────────────────
