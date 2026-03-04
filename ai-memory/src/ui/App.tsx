@@ -6,7 +6,6 @@ import { ConfirmModal } from './components/Modal';
 import TerminalLogs from './components/TerminalLogs';
 import HelpDrawer from './components/HelpDrawer';
 import Settings from './components/Settings';
-import Taxonomy from './components/Taxonomy';
 import TransferModal from './components/TransferModal';
 import Icon from './components/Icon';
 import { sse, listen } from './sse';
@@ -72,7 +71,7 @@ const App: Component = () => {
     const [logsOpen, setLogsOpen] = createSignal(false);
     const [helpOpen, setHelpOpen] = createSignal(false);
     const [settingsOpen, setSettingsOpen] = createSignal(false);
-    const [taxonomyOpen, setTaxonomyOpen] = createSignal(false);
+
     const [transferOpen, setTransferOpen] = createSignal(false);
     const [helpTopic, setHelpTopic] = createSignal('');
     const [stopConfirm, setStopConfirm] = createSignal(false);
@@ -320,15 +319,7 @@ const App: Component = () => {
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button
-                        onClick={() => setTaxonomyOpen(true)}
-                        class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
-                        title="Manage domains and categories"
-                    >
-                        <i class="fa-solid fa-tags" style="font-size: 14px"></i>
-                        Taxonomy
-                    </button>
-                    <button
+<button
                         onClick={() => setSettingsOpen(true)}
                         class="px-2 py-1.5 rounded text-neutral-500 hover:text-sky-400 transition-colors flex items-center"
                         title="Settings"
@@ -574,7 +565,6 @@ const App: Component = () => {
 
             <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} showToast={showToast} />
 
-            <Taxonomy open={taxonomyOpen()} onClose={() => setTaxonomyOpen(false)} showToast={showToast} />
 
             <TransferModal
                 open={transferOpen()}
