@@ -45,6 +45,8 @@ function initSchema(db: Database.Database): void {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             path TEXT UNIQUE NOT NULL,
             name TEXT NOT NULL,
+            icon TEXT NOT NULL DEFAULT 'fa-folder-open',
+            description TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
 
@@ -54,6 +56,7 @@ function initSchema(db: Database.Database): void {
             content TEXT NOT NULL,
             source_summary TEXT NOT NULL,
             processed INTEGER NOT NULL DEFAULT 0,
+            skipped_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
 
@@ -66,6 +69,8 @@ function initSchema(db: Database.Database): void {
             importance INTEGER NOT NULL DEFAULT 3
                 CHECK(importance BETWEEN 1 AND 5),
             observation_ids TEXT NOT NULL DEFAULT '',
+            domain TEXT REFERENCES domains(name),
+            reason TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
             updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
@@ -131,28 +136,10 @@ function initSchema(db: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_observations_processed ON observations(processed);
         CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id);
         CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);
+        CREATE INDEX IF NOT EXISTS idx_memories_domain ON memories(domain);
         CREATE INDEX IF NOT EXISTS idx_obs_queue_status ON observation_queue(status);
         CREATE INDEX IF NOT EXISTS idx_mem_queue_status ON memory_queue(status);
     `);
-
-    // Migration: add domain column to memories (idempotent)
-    const memCols = db.prepare("PRAGMA table_info(memories)").all() as { name: string }[];
-    if (!memCols.some(c => c.name === 'domain')) {
-        db.exec("ALTER TABLE memories ADD COLUMN domain TEXT REFERENCES domains(name)");
-        db.exec("CREATE INDEX IF NOT EXISTS idx_memories_domain ON memories(domain)");
-    }
-
-    // Migration: add skipped_count column to observations (idempotent)
-    const obsCols = db.prepare("PRAGMA table_info(observations)").all() as { name: string }[];
-    if (!obsCols.some(c => c.name === 'skipped_count')) {
-        db.exec("ALTER TABLE observations ADD COLUMN skipped_count INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // Migration: add icon column to domains (idempotent)
-    const domCols = db.prepare("PRAGMA table_info(domains)").all() as { name: string }[];
-    if (!domCols.some(c => c.name === 'icon')) {
-        db.exec("ALTER TABLE domains ADD COLUMN icon TEXT NOT NULL DEFAULT 'fa-folder'");
-    }
 
     // Seed default domains
     const domainSeed: [string, string, string][] = [
@@ -214,12 +201,35 @@ export function getOrCreateProject(projectPath: string): { id: number; path: str
     return { id: Number(result.lastInsertRowid), path: projectPath, name };
 }
 
+export function deleteProject(projectId: number): { memories: number; observations: number } {
+    const db = getDb();
+    const proj = db.prepare('SELECT path FROM projects WHERE id = ?').get(projectId) as any;
+    if (!proj) throw new Error(`Project ${projectId} not found`);
+    if (proj.path === '_global') throw new Error('Cannot delete the global project');
+
+    const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(projectId) as any).c;
+    const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(projectId) as any).c;
+
+    db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(projectId);
+    db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(projectId);
+    db.prepare('DELETE FROM memories WHERE project_id = ?').run(projectId);
+    db.prepare('DELETE FROM observations WHERE project_id = ?').run(projectId);
+    db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+
+    return { memories: memCount, observations: obsCount };
+}
+
+export function updateProjectMeta(projectId: number, icon: string, description: string): void {
+    const db = getDb();
+    db.prepare('UPDATE projects SET icon = ?, description = ? WHERE id = ?').run(icon, description, projectId);
+}
+
 export function listProjects(): any[] {
     const db = getDb();
     return db
         .prepare(
             `
-        SELECT p.id, p.path, p.name, p.created_at,
+        SELECT p.id, p.path, p.name, p.icon, p.description, p.created_at,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
             (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
         FROM projects p
@@ -285,6 +295,7 @@ export function insertMemory(
     importance: number,
     observationIds: string,
     domain?: string,
+    reason?: string,
 ): number {
     const validCats = listCategoriesRaw();
     if (!validCats.some(c => c.name === category)) {
@@ -294,12 +305,10 @@ export function insertMemory(
     const now = new Date().toISOString();
     const result = db
         .prepare(
-            `
-        INSERT INTO memories (project_id, content, tags, category, importance, observation_ids, domain, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
+            `INSERT INTO memories (project_id, content, tags, category, importance, observation_ids, domain, reason, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(projectId, content, tags, category, importance, observationIds, domain ?? null, now, now);
+        .run(projectId, content, tags, category, importance, observationIds, domain ?? null, reason ?? '', now, now);
     return Number(result.lastInsertRowid);
 }
 
@@ -311,6 +320,7 @@ export function updateMemory(
     importance: number,
     observationIds: string,
     domain?: string,
+    reason?: string,
 ): void {
     const validCats = listCategoriesRaw();
     if (!validCats.some(c => c.name === category)) {
@@ -319,11 +329,9 @@ export function updateMemory(
     const db = getDb();
     const now = new Date().toISOString();
     db.prepare(
-        `
-        UPDATE memories SET content = ?, tags = ?, category = ?, importance = ?, observation_ids = ?, domain = ?, updated_at = ?
-        WHERE id = ?
-    `,
-    ).run(content, tags, category, importance, observationIds, domain ?? null, now, id);
+        `UPDATE memories SET content = ?, tags = ?, category = ?, importance = ?, observation_ids = ?, domain = ?, reason = ?, updated_at = ?
+         WHERE id = ?`,
+    ).run(content, tags, category, importance, observationIds, domain ?? null, reason ?? '', now, id);
 }
 
 export function searchMemories(
@@ -336,7 +344,7 @@ export function searchMemories(
 ): any[] {
     const db = getDb();
     let sql = `
-        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, p.path as project_path
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
         FROM memories m
         JOIN memories_fts f ON m.id = f.rowid
         JOIN projects p ON m.project_id = p.id
@@ -390,7 +398,7 @@ export function listMemories(projectPath?: string, tag?: string, category?: stri
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
-        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, p.path as project_path
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
         FROM memories m
         JOIN projects p ON m.project_id = p.id
         ${where}
@@ -459,6 +467,16 @@ export function deleteDomain(name: string): void {
     db.prepare('DELETE FROM domains WHERE name = ?').run(name);
 }
 
+export function forceDeleteDomain(name: string): number {
+    const db = getDb();
+    const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE domain = ?').get(name) as any).c;
+    if (count > 0) {
+        db.prepare("DELETE FROM memories WHERE domain = ?").run(name);
+    }
+    db.prepare('DELETE FROM domains WHERE name = ?').run(name);
+    return count;
+}
+
 // ── Category queries ────────────────────────────────────────────
 
 export function listCategoriesRaw(): { name: string; description: string; icon: string }[] {
@@ -502,6 +520,16 @@ export function deleteCategory(name: string): void {
     const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE category = ?').get(name) as any).c;
     if (count > 0) throw new Error(`Cannot delete category "${name}": ${count} memories reference it`);
     db.prepare('DELETE FROM categories WHERE name = ?').run(name);
+}
+
+export function forceDeleteCategory(name: string): number {
+    const db = getDb();
+    const count = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE category = ?").get(name) as any).c;
+    if (count > 0) {
+        db.prepare("DELETE FROM memories WHERE category = ?").run(name);
+    }
+    db.prepare('DELETE FROM categories WHERE name = ?').run(name);
+    return count;
 }
 
 // ── Tag queries ─────────────────────────────────────────────────
