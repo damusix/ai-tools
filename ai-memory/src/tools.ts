@@ -35,12 +35,13 @@ export function createMcpServer(): McpServer {
                     .optional()
                     .describe("Project path. Defaults to current project. Use '_global' for cross-project."),
                 domain: z.string().optional().describe('Domain (e.g., frontend, backend, data). See list_domains for options.'),
+                reason: z.string().optional().describe('Why this memory is being saved'),
             }),
         },
-        async ({ content, tags, category, importance, project, domain }) => {
+        async ({ content, tags, category, importance, project, domain, reason }) => {
             const projectPath = project || process.env.PWD || '_global';
             const proj = getOrCreateProject(projectPath);
-            const id = insertMemory(proj.id, content, tags.join(','), category, importance, '', domain);
+            const id = insertMemory(proj.id, content, tags.join(','), category, importance, '', domain, reason);
             log('mcp', `save_memory: id=${id} category=${category} importance=${importance} project=${projectPath}`);
             return {
                 content: [{ type: 'text', text: JSON.stringify({ saved: true, id, project: projectPath }) }],

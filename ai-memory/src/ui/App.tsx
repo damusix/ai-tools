@@ -18,6 +18,7 @@ export type Memory = {
     category: string;
     importance: number;
     domain: string | null;
+    reason: string;
     created_at: string;
     updated_at: string;
     project_path: string;
@@ -36,6 +37,8 @@ export type Project = {
     id: number;
     path: string;
     name: string;
+    icon: string;
+    description: string;
     created_at: string;
     observation_count: number;
     memory_count: number;
