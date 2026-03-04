@@ -1,5 +1,5 @@
 {
-    "name": "alonso-network",
+    "name": "damusix-ai-tools",
     "owner": {
         "name": "Danilo Alonso"
     },
@@ -9,9 +9,13 @@
     "plugins": [
         {
             "name": "ai-memory",
-            "version": "0.1.0",
+            "version": "1.0.0",
             "source": "./ai-memory",
-            "description": "Persistent memory across Claude Code sessions"
+            "description": "Persistent memory across Claude Code sessions",
+            "author": {
+                "name": "Danilo Alonso"
+            },
+            "keywords": ["memory", "claude", "code", "plugin"]
         },
         {
             "name": "auto-approve-compound-bash",
@@ -19,7 +23,7 @@
             "source": "./cc-auto-approve-fix",
             "description": "Auto-approve compound Bash commands by parsing each segment against allow/deny rules",
             "author": {
-                "name": "Ory Band"
+                "name": "Danilo Alonso"
             },
             "keywords": ["hooks", "bash", "permissions", "compound-commands", "auto-approve"]
         }
