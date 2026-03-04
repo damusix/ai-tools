@@ -20,6 +20,7 @@ Domains categorize memories by area — frontend, backend, api, data, security, 
 
 ## Actions
 
+- **Settings** — Configure worker, context, server, and API parameters. Manage domains and categories (add, edit, delete, AI generate). Restore built-in defaults for any tab.
 - **Logs** — Server activity log: extraction, synthesis, cleanup, errors
 - **Clean up** — Removes stale observations (14+ days), skipped observations, and duplicate memories
 - **Transfer** — Moves memories and observations from one project path to another (useful when renaming or moving project folders)

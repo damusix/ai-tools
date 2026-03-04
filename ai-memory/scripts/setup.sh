@@ -4,7 +4,8 @@ set -euo pipefail
 echo "[ai-memory] Setting up..."
 
 # Check deps
-command -v node >/dev/null 2>&1 || { echo "ERROR: node not found"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "ERROR: node not found. Install Node.js 22+."; exit 1; }
+command -v pnpm >/dev/null 2>&1 || { echo "ERROR: pnpm not found. Install with: npm install -g pnpm"; exit 1; }
 command -v sqlite3 >/dev/null 2>&1 || { echo "ERROR: sqlite3 not found"; exit 1; }
 
 # Verify FTS5

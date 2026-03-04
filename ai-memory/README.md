@@ -7,6 +7,25 @@ Everything runs locally. Your data never leaves your machine.
 One server process handles everything — HTTP API, MCP tools, background worker, and dashboard. Unlike stdio-based MCP servers that spawn a new process per session, ai-memory starts a single instance on first use and reuses it across all your Claude Code sessions. If it's already running, the startup hook detects it and skips straight to fetching your context. This means no duplicated processes, no growing memory footprint, and no wasted CPU when you have multiple projects open.
 
 
+## Prerequisites
+
+- **Node.js 22+** — required for the server runtime
+- **pnpm** — package manager (`npm install -g pnpm`)
+- **sqlite3** with **FTS5 support** — required for full-text search indexes (most system SQLite installs include FTS5)
+
+On first session start, ai-memory automatically installs dependencies and builds the server and dashboard. No manual setup is needed beyond having the prerequisites installed.
+
+
+## Platform Support
+
+| Platform | Status |
+| -------- | ------ |
+| **macOS** | Tested. Primary development platform. |
+| **Linux** | High confidence. Uses standard Node.js and SQLite — should work out of the box. |
+| **Windows (WSL)** | Likely works. The bash hooks and Unix conventions should function normally under WSL. |
+| **Windows (native)** | Not supported. Hooks rely on bash scripts and Unix process management. |
+
+
 ## What It Does
 
 When you end a Claude Code session, ai-memory captures observations — atomic facts, decisions, patterns, and preferences — from your conversation. A background worker periodically synthesizes those observations into memories: concise, categorized, domain-tagged summaries of what matters about your project.
@@ -168,7 +187,10 @@ A web UI is available at `http://localhost:24636` (or whatever port is configure
 
 - Memory cards with category, domain, importance, tags, and content
 - Observation cards with processing status (pending/synthesized)
-- Project selector to filter by project
+- Project selector with inline delete buttons to filter by project
+- Settings modal to configure worker, context, server, and API parameters
+- Domain and category management with add, edit, delete, and AI-assisted generation
+- Restore defaults to recover any deleted built-in domains or categories
 - Manual cleanup button
 - Project transfer/migration tool
 - Server logs viewer

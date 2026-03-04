@@ -528,6 +528,7 @@ const Settings: Component<{
     open: boolean;
     onClose: () => void;
     showToast: (msg: string) => void;
+    onHelp?: () => void;
 }> = (props) => {
     const [tab, setTab] = createSignal<'config' | 'domains' | 'categories'>('config');
     const [config, setConfig] = createSignal<Record<string, number>>({});
@@ -698,12 +699,23 @@ const Settings: Component<{
                             <Icon name="gear" size={14} class="text-sky-400" />
                             Settings
                         </h2>
-                        <button
-                            onClick={props.onClose}
-                            class="text-neutral-500 hover:text-neutral-300 p-1 rounded hover:bg-neutral-800"
-                        >
-                            <Icon name="x" size={14} />
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <Show when={props.onHelp}>
+                                <button
+                                    onClick={props.onHelp}
+                                    class="text-neutral-500 hover:text-sky-400 p-1 rounded hover:bg-neutral-800 transition-colors"
+                                    title="Help"
+                                >
+                                    <Icon name="info" size={14} />
+                                </button>
+                            </Show>
+                            <button
+                                onClick={props.onClose}
+                                class="text-neutral-500 hover:text-neutral-300 p-1 rounded hover:bg-neutral-800"
+                            >
+                                <Icon name="x" size={14} />
+                            </button>
+                        </div>
                     </div>
                     <div class="flex gap-1">
                         <For each={tabs}>

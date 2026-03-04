@@ -610,7 +610,7 @@ const App: Component = () => {
 
             <HelpDrawer open={helpOpen()} topic={helpTopic()} onClose={() => setHelpOpen(false)} />
 
-            <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} showToast={showToast} />
+            <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} showToast={showToast} onHelp={() => { setSettingsOpen(false); openHelp('settings'); }} />
 
 
             <TransferModal

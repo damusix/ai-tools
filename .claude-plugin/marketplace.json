@@ -15,7 +15,12 @@
             "author": {
                 "name": "Danilo Alonso"
             },
-            "keywords": ["memory", "claude", "code", "plugin"]
+            "keywords": [
+                "memory",
+                "claude",
+                "code",
+                "plugin"
+            ]
         },
         {
             "name": "auto-approve-compound-bash",
@@ -25,7 +30,13 @@
             "author": {
                 "name": "Danilo Alonso"
             },
-            "keywords": ["hooks", "bash", "permissions", "compound-commands", "auto-approve"]
+            "keywords": [
+                "hooks",
+                "bash",
+                "permissions",
+                "compound-commands",
+                "auto-approve"
+            ]
         }
     ]
 }
