@@ -205,6 +205,18 @@ const App: Component = () => {
         return map;
     });
 
+    const projectIconMap = createMemo(() => {
+        const map: Record<string, string> = {};
+        for (const p of projects() || []) map[p.path] = p.icon;
+        return map;
+    });
+
+    const projectDescMap = createMemo(() => {
+        const map: Record<string, string> = {};
+        for (const p of projects() || []) map[p.path] = p.description;
+        return map;
+    });
+
     const [memories] = createResource(
         () => ({ project: project(), key: refreshKey() }),
         ({ project: p }) => {
@@ -407,8 +419,9 @@ const App: Component = () => {
                                             <button
                                                 class="w-full mt-4 mb-2 px-2 py-1.5 rounded bg-neutral-800/60 border border-neutral-700/50 flex items-center gap-1.5 hover:bg-neutral-800 transition-colors"
                                                 onClick={() => toggleProject(`obs:${projPath}`)}
+                                                title={projectDescMap()[projPath] || ''}
                                             >
-                                                <Icon name={projPath === '_global' ? 'globe' : 'folder-open'} size={12} class="text-purple-400" />
+                                                <i class={`fa-solid ${projPath === '_global' ? 'fa-globe' : (projectIconMap()[projPath] || 'fa-folder-open')} text-purple-400`} style="font-size: 12px"></i>
                                                 <span class="text-xs font-medium text-neutral-300">{shortPath(projPath)}</span>
                                                 <span class="text-[10px] text-neutral-500">({obs.length})</span>
                                                 <span class="ml-auto">
@@ -450,9 +463,15 @@ const App: Component = () => {
                                                 <button
                                                     class="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-neutral-800/60 transition-colors"
                                                     onClick={() => toggleProject(projGroup.project)}
+                                                    title={projectDescMap()[projGroup.project] || ''}
                                                 >
-                                                    <Icon name={projGroup.project === '_global' ? 'globe' : 'folder-open'} size={16} class="text-sky-400" />
-                                                    <span class="text-sm font-bold text-neutral-200">{shortPath(projGroup.project)}</span>
+                                                    <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
+                                                    <div class="flex flex-col items-start">
+                                                        <span class="text-sm font-bold text-neutral-200">{shortPath(projGroup.project)}</span>
+                                                        <Show when={projectDescMap()[projGroup.project]}>
+                                                            <span class="text-[10px] text-neutral-500 leading-tight">{projectDescMap()[projGroup.project]}</span>
+                                                        </Show>
+                                                    </div>
                                                     <span class="text-xs text-neutral-500">
                                                         ({projGroup.domains.reduce((n, d) => n + d.categories.reduce((c, cat) => c + cat.memories.length, 0), 0)} memories)
                                                     </span>
