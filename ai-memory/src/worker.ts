@@ -219,9 +219,13 @@ async function processMemoryQueue(): Promise<boolean> {
         }
 
         const db = getDb();
-        const projectPath = (db.prepare('SELECT path FROM projects WHERE id = ?').get(item.project_id) as any)?.path;
+        const project = db.prepare('SELECT path, description FROM projects WHERE id = ?').get(item.project_id) as any;
+        const projectPath = project?.path;
+        const projectContext = project?.description
+            ? `${project.path} — ${project.description}`
+            : project?.path || 'unknown';
         const existingMemories = listMemories(projectPath, undefined, undefined, getConfig().worker.synthesisMemoriesLimit);
-        const result = await synthesizeMemories(observations, existingMemories);
+        const result = await synthesizeMemories(observations, existingMemories, projectContext);
 
         const processedObsIds: number[] = [];
 
@@ -234,6 +238,7 @@ async function processMemoryQueue(): Promise<boolean> {
                 mem.importance || 3,
                 (mem.observation_ids || []).join(','),
                 mem.domain || 'general',
+                mem.reason || 'Synthesized from observations',
             );
             processedObsIds.push(...(mem.observation_ids || []));
         }
@@ -247,6 +252,7 @@ async function processMemoryQueue(): Promise<boolean> {
                 mem.importance || 3,
                 mem.observation_ids?.join(',') || '',
                 mem.domain || 'general',
+                mem.reason || 'Updated from new observations',
             );
             processedObsIds.push(...(mem.observation_ids || []));
         }
@@ -410,6 +416,7 @@ export async function runCleanup(projectId?: number): Promise<{ deleted: { obser
 async function synthesizeMemories(
     observations: any[],
     existingMemories: any[],
+    projectContext: string = 'unknown',
 ): Promise<{ creates?: any[]; updates?: any[] }> {
     try {
         const { query } = await import('@anthropic-ai/claude-agent-sdk');
@@ -420,6 +427,7 @@ async function synthesizeMemories(
         const categoriesText = categories.map(c => `- ${c.name}: ${c.description}`).join('\n');
 
         const prompt = loadPrompt('synthesize-memories', {
+            PROJECT: projectContext,
             EXISTING_MEMORIES: JSON.stringify(existingMemories.slice(0, getConfig().worker.synthesisTopSlice), null, 2),
             OBSERVATIONS: JSON.stringify(observations, null, 2),
             DOMAINS: domainsText,
