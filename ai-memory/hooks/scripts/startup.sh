@@ -12,18 +12,11 @@ fi
 BASE="http://localhost:$PORT"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
-# First-run: if dist/server.js doesn't exist, run setup (install deps + build)
-if [ ! -f "$PLUGIN_ROOT/dist/server.js" ]; then
-    if [ -f "$PLUGIN_ROOT/scripts/setup.sh" ]; then
-        CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PLUGIN_ROOT/scripts/setup.sh" 2>&1 || {
-            echo '{"systemMessage": "[ai-memory] First-run setup failed. Check that node, pnpm, and sqlite3 are installed."}'
-            exit 0
-        }
-    else
-        echo '{"systemMessage": "[ai-memory] dist/server.js not found and no setup script available."}'
-        exit 0
-    fi
-fi
+# Run setup diagnostics (cascading: install → rebuild native → build)
+CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PLUGIN_ROOT/scripts/setup.sh" 2>&1 || {
+    echo '{"systemMessage": "[ai-memory] Setup failed. Check that node, pnpm, and sqlite3 are installed."}'
+    exit 0
+}
 
 # Update .mcp.json in plugin root and Claude's cache with current port
 MCP_JSON="{\"ai-memory\":{\"command\":\"npx\",\"args\":[\"-y\",\"mcp-remote\",\"http://localhost:$PORT/mcp\"]}}"
