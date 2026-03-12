@@ -79,9 +79,11 @@ export function createApp(): Hono {
     app.post('/enqueue', async (c) => {
         const body = await c.req.json();
         const projectPath = body.project || '_global';
+        const isNew = !listProjects().some(p => p.path === projectPath);
         const project = getOrCreateProject(projectPath);
         const id = enqueueObservation(project.id, JSON.stringify(body.payload || body));
         log('api', `Enqueued turn for ${projectPath}`);
+        if (isNew) broadcast('counts:updated', {});
         return c.json({ queued: true, id });
     });
 
