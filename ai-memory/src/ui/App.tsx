@@ -233,6 +233,14 @@ const App: Component = () => {
         },
     );
 
+    const [stats] = createResource(
+        () => ({ project: project(), key: refreshKey() }),
+        ({ project: p }) => {
+            const qs = p ? `?project=${encodeURIComponent(p)}` : '';
+            return api<{ memories: number; observations: number }>('/api/stats' + qs);
+        },
+    );
+
     // Group observations: by project (if all projects mode), then pending first
     const groupedObservations = createMemo(() => {
         const obs = observations() || [];
@@ -287,6 +295,17 @@ const App: Component = () => {
             }
             result.push({ project: proj, domains });
         }
+        // Merge projects that have 0 memories so they still render
+        if (isAllProjects) {
+            const existingPaths: Record<string, true> = {};
+            for (const g of result) existingPaths[g.project] = true;
+            for (const p of (projects() || [])) {
+                if (!existingPaths[p.path]) {
+                    result.push({ project: p.path, domains: [] });
+                }
+            }
+        }
+
         return result;
     });
 
@@ -322,11 +341,11 @@ const App: Component = () => {
                     <div class="flex gap-3 text-xs">
                         <span class="text-sky-300/70 flex items-center gap-1">
                             <Icon name="brain" size={12} />
-                            {memories()?.length ?? 0} memories
+                            {stats()?.memories ?? 0} memories
                         </span>
                         <span class="text-purple-300/70 flex items-center gap-1">
                             <Icon name="eye" size={12} />
-                            {observations()?.length ?? 0} observations
+                            {stats()?.observations ?? 0} observations
                         </span>
                     </div>
                 </div>
@@ -405,7 +424,7 @@ const App: Component = () => {
                         <h2 class="text-sm font-semibold text-neutral-300 mb-3 flex items-center gap-2">
                             <Icon name="eye" size={14} class="text-purple-400" />
                             Observations
-                            <span class="text-xs text-purple-300/70">({observations()?.length ?? 0})</span>
+                            <span class="text-xs text-purple-300/70">({stats()?.observations ?? 0})</span>
                             <InfoBtn topic="observations" />
                         </h2>
                         <Show
