@@ -307,6 +307,12 @@ export function insertMemory(
     if (!validCats.some(c => c.name === category)) {
         throw new Error(`Invalid category: "${category}". Valid: ${validCats.map(c => c.name).join(', ')}`);
     }
+    if (domain) {
+        const validDoms = listDomainsRaw();
+        if (!validDoms.some(d => d.name === domain)) {
+            throw new Error(`Invalid domain: "${domain}". Valid: ${validDoms.map(d => d.name).join(', ')}`);
+        }
+    }
     const db = getDb();
     const now = new Date().toISOString();
     const result = db
@@ -331,6 +337,12 @@ export function updateMemory(
     const validCats = listCategoriesRaw();
     if (!validCats.some(c => c.name === category)) {
         throw new Error(`Invalid category: "${category}". Valid: ${validCats.map(c => c.name).join(', ')}`);
+    }
+    if (domain) {
+        const validDoms = listDomainsRaw();
+        if (!validDoms.some(d => d.name === domain)) {
+            throw new Error(`Invalid domain: "${domain}". Valid: ${validDoms.map(d => d.name).join(', ')}`);
+        }
     }
     const db = getDb();
     const now = new Date().toISOString();

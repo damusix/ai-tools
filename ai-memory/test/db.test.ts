@@ -376,6 +376,25 @@ describe('forceDeleteCategory', () => {
     });
 });
 
+describe('domain validation in insertMemory/updateMemory', () => {
+    it('insertMemory rejects invalid domain', () => {
+        const proj = getOrCreateProject('/test/dom-val');
+        expect(() => insertMemory(proj.id, 'test', '', 'fact', 3, '', 'nonexistent-domain')).toThrow('Invalid domain');
+    });
+
+    it('insertMemory accepts valid domain', () => {
+        const proj = getOrCreateProject('/test/dom-val2');
+        const id = insertMemory(proj.id, 'test', '', 'fact', 3, '', 'frontend');
+        expect(id).toBeGreaterThan(0);
+    });
+
+    it('insertMemory accepts undefined domain (null in DB)', () => {
+        const proj = getOrCreateProject('/test/dom-val3');
+        const id = insertMemory(proj.id, 'test', '', 'fact', 3, '', undefined);
+        expect(id).toBeGreaterThan(0);
+    });
+});
+
 describe('memory reason', () => {
     it('stores and retrieves reason', () => {
         const proj = getOrCreateProject('/test/reason');
