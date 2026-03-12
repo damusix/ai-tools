@@ -34,7 +34,7 @@ export function createMcpServer(): McpServer {
                     .string()
                     .optional()
                     .describe("Project path. Defaults to current project. Use '_global' for cross-project."),
-                domain: z.string().optional().describe('Domain (e.g., frontend, backend, data). See list_domains for options.'),
+                domain: z.string().default('general').describe('Domain (e.g., frontend, backend, data). See list_domains for options.'),
                 reason: z.string().optional().describe('Why this memory is being saved'),
             }),
         },
