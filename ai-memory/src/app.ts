@@ -30,6 +30,7 @@ import {
     listCategoriesRaw,
     restoreDefaultDomains,
     restoreDefaultCategories,
+    getStats,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -96,6 +97,11 @@ export function createApp(): Hono {
     // ── JSON API for Web UI ─────────────────────────────────────────
     app.get('/api/projects', (c) => {
         return c.json(listProjects());
+    });
+
+    app.get('/api/stats', (c) => {
+        const project = c.req.query('project');
+        return c.json(getStats(project));
     });
 
     app.delete('/api/projects/:id', (c) => {

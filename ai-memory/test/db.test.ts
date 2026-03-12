@@ -37,6 +37,7 @@ import {
     forceDeleteDomain,
     forceDeleteCategory,
     listProjects,
+    getStats,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -413,5 +414,33 @@ describe('project enrichment', () => {
         const p = all.find((pr: any) => pr.path === '/test/enrich');
         expect(p.icon).toBe('fa-rocket');
         expect(p.description).toBe('A rocket science project');
+    });
+});
+
+describe('getStats', () => {
+    it('returns total counts across all projects', () => {
+        const p1 = getOrCreateProject('/test/stats1');
+        const p2 = getOrCreateProject('/test/stats2');
+        insertMemory(p1.id, 'mem1', '', 'fact', 3, '');
+        insertMemory(p1.id, 'mem2', '', 'fact', 3, '');
+        insertMemory(p2.id, 'mem3', '', 'fact', 3, '');
+        insertObservation(p1.id, 'obs1', 'src');
+
+        const stats = getStats();
+        expect(stats.memories).toBe(3);
+        expect(stats.observations).toBe(1);
+    });
+
+    it('returns project-scoped counts', () => {
+        const p1 = getOrCreateProject('/test/stats-scoped1');
+        const p2 = getOrCreateProject('/test/stats-scoped2');
+        insertMemory(p1.id, 'mem1', '', 'fact', 3, '');
+        insertMemory(p2.id, 'mem2', '', 'fact', 3, '');
+        insertObservation(p1.id, 'obs1', 'src');
+        insertObservation(p2.id, 'obs2', 'src');
+
+        const stats = getStats('/test/stats-scoped1');
+        expect(stats.memories).toBe(1);
+        expect(stats.observations).toBe(1);
     });
 });

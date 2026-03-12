@@ -440,6 +440,26 @@ export function deleteObservation(id: number): boolean {
     return result.changes > 0;
 }
 
+export function getStats(projectPath?: string): { memories: number; observations: number } {
+    const db = getDb();
+
+    if (projectPath) {
+        const row = db.prepare(`
+            SELECT
+                (SELECT COUNT(*) FROM memories m JOIN projects p ON m.project_id = p.id WHERE p.path = ? OR p.path = '_global') as memories,
+                (SELECT COUNT(*) FROM observations o JOIN projects p ON o.project_id = p.id WHERE p.path = ? OR p.path = '_global') as observations
+        `).get(projectPath, projectPath) as any;
+        return { memories: row.memories, observations: row.observations };
+    }
+
+    const row = db.prepare(`
+        SELECT
+            (SELECT COUNT(*) FROM memories) as memories,
+            (SELECT COUNT(*) FROM observations) as observations
+    `).get() as any;
+    return { memories: row.memories, observations: row.observations };
+}
+
 // ── Domain queries ──────────────────────────────────────────────
 
 export function listDomains(projectPath?: string): { name: string; description: string; icon: string; count: number }[] {

@@ -126,4 +126,30 @@ describe('API', () => {
         const json2 = await res2.json();
         expect(json2.deleted).toBe(false);
     });
+
+    it('GET /api/stats returns total counts', async () => {
+        const app = makeApp();
+        const proj = getOrCreateProject('_global');
+        insertMemory(proj.id, 'test memory', '', 'fact', 3, '');
+        insertObservation(proj.id, 'test obs', 'src');
+
+        const res = await app.request('/api/stats');
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.memories).toBe(1);
+        expect(json.observations).toBe(1);
+    });
+
+    it('GET /api/stats?project=X returns scoped counts', async () => {
+        const app = makeApp();
+        const p1 = getOrCreateProject('/proj/a');
+        const p2 = getOrCreateProject('/proj/b');
+        insertMemory(p1.id, 'mem1', '', 'fact', 3, '');
+        insertMemory(p2.id, 'mem2', '', 'fact', 3, '');
+
+        const res = await app.request('/api/stats?project=%2Fproj%2Fa');
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.memories).toBe(1);
+    });
 });
