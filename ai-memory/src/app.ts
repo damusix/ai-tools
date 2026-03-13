@@ -21,6 +21,7 @@ import {
     updateCategory,
     deleteCategory,
     searchMemories,
+    searchMemoriesFuzzy,
     transferProject,
     deleteProject,
     updateProjectMeta,
@@ -319,6 +320,45 @@ export function createApp(): Hono {
         } catch {
             return c.json({ memories: [] });
         }
+    });
+
+    // ── HTTP API: Search (word-based FTS + trigram fallback) ──────────
+    app.get('/api/search', (c) => {
+        const q = c.req.query('q');
+        if (!q) return c.json({ error: 'q parameter required' }, 400);
+        const project = c.req.query('project');
+        const domain = c.req.query('domain');
+        const category = c.req.query('category');
+        const limit = parseInt(c.req.query('limit') || '50', 10);
+
+        // Word-based FTS with prefix wildcards
+        const words = q.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+        const ftsTerms = [...new Set(words)].slice(0, 5);
+        let results: any[] = [];
+
+        if (ftsTerms.length > 0) {
+            const ftsQuery = ftsTerms.map(w => w.endsWith('*') ? w : w + '*').join(' OR ');
+            try {
+                results = searchMemories(ftsQuery, project, undefined, category, limit, domain);
+            } catch {}
+        }
+
+        // Fill with trigram if not enough results
+        if (results.length < limit) {
+            try {
+                const fuzzy = searchMemoriesFuzzy(q, project, undefined, category, limit - results.length, domain);
+                const seen: Record<number, true> = {};
+                for (const r of results) seen[r.id] = true;
+                for (const r of fuzzy) {
+                    if (!seen[r.id]) {
+                        results.push(r);
+                        seen[r.id] = true;
+                    }
+                }
+            } catch {}
+        }
+
+        return c.json(results);
     });
 
     // ── HTTP API: Transfer project memories to a new path ────────────

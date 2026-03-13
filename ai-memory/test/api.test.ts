@@ -152,4 +152,23 @@ describe('API', () => {
         const json = await res.json();
         expect(json.memories).toBe(1);
     });
+
+    it('GET /api/search returns word-based + trigram results', async () => {
+        const app = makeApp();
+        const proj = getOrCreateProject('_global');
+        insertMemory(proj.id, 'Use authentication middleware for all API routes', 'auth', 'pattern', 4, '');
+        insertMemory(proj.id, 'Configure webpack bundler for production builds', 'webpack', 'fact', 3, '');
+
+        const res = await app.request('/api/search?q=auth');
+        expect(res.status).toBe(200);
+        const json: any[] = await res.json();
+        expect(json.length).toBeGreaterThan(0);
+        expect(json[0].content).toContain('authentication');
+    });
+
+    it('GET /api/search without q returns 400', async () => {
+        const app = makeApp();
+        const res = await app.request('/api/search');
+        expect(res.status).toBe(400);
+    });
 });
