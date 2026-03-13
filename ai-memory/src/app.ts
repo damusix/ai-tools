@@ -347,7 +347,8 @@ export function createApp(): Hono {
         // Fill with trigram if not enough results
         if (results.length < limit) {
             try {
-                const fuzzy = searchMemoriesFuzzy(q, project, undefined, category, limit - results.length, domain);
+                const sanitizedQ = q.replace(/[^\w\s]/g, '').trim();
+                const fuzzy = sanitizedQ.length >= 3 ? searchMemoriesFuzzy(sanitizedQ, project, undefined, category, limit - results.length, domain) : [];
                 const seen: Record<number, true> = {};
                 for (const r of results) seen[r.id] = true;
                 for (const r of fuzzy) {
