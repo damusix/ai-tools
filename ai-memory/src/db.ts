@@ -205,7 +205,7 @@ function initSchema(db: Database.Database): void {
     ).run();
 
     // Backfill trigram FTS from existing memories (idempotent)
-    const trigramCount = (db.prepare('SELECT COUNT(*) as c FROM memories_trigram').get() as any).c;
+    const trigramCount = (db.prepare('SELECT COUNT(*) as c FROM memories_trigram_docsize').get() as any).c;
     const memoryCount = (db.prepare('SELECT COUNT(*) as c FROM memories').get() as any).c;
     if (trigramCount < memoryCount) {
         db.exec("INSERT INTO memories_trigram(memories_trigram) VALUES('rebuild')");
@@ -424,6 +424,7 @@ export function searchMemoriesFuzzy(
     limit = 20,
     domain?: string,
 ): any[] {
+    if (!query || query.trim().length < 3) return [];
     const db = getDb();
     let sql = `
         SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
