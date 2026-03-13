@@ -8,6 +8,7 @@ import HelpDrawer from './components/HelpDrawer';
 import Settings from './components/Settings';
 import TransferModal from './components/TransferModal';
 import Icon from './components/Icon';
+import BrandLogo from './components/BrandLogo';
 import { sse, listen } from './sse';
 
 export type Memory = {
@@ -358,7 +359,7 @@ const App: Component = () => {
             <header class="flex items-center justify-between px-4 py-4 shrink-0">
                 <div class="flex items-center gap-4">
                     <h1 class="text-xl font-bold text-neutral-200 flex items-center gap-2">
-                        <Icon name="brain" size={20} class="text-sky-400" />
+                        <BrandLogo size={20} />
                         ai-memory
                     </h1>
                     <div class="flex gap-3 text-xs">
