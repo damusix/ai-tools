@@ -38,6 +38,7 @@ import {
     forceDeleteCategory,
     listProjects,
     getStats,
+    searchMemoriesFuzzy,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -451,5 +452,24 @@ describe('getStats', () => {
         const stats = getStats('/test/stats-scoped1');
         expect(stats.memories).toBe(1);
         expect(stats.observations).toBe(1);
+    });
+});
+
+describe('trigram search', () => {
+    it('searchMemoriesFuzzy finds substring matches', () => {
+        const proj = getOrCreateProject('/test/trigram');
+        insertMemory(proj.id, 'Always use authentication middleware for API routes', 'auth,security', 'pattern', 4, '');
+
+        const results = searchMemoriesFuzzy('auth');
+        expect(results.length).toBe(1);
+        expect(results[0].content).toContain('authentication');
+    });
+
+    it('searchMemoriesFuzzy finds partial word matches', () => {
+        const proj = getOrCreateProject('/test/trigram2');
+        insertMemory(proj.id, 'Use webpack for bundling the frontend assets', 'webpack', 'fact', 3, '');
+
+        const results = searchMemoriesFuzzy('webpac');
+        expect(results.length).toBe(1);
     });
 });

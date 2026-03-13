@@ -135,6 +135,20 @@ function initSchema(db: Database.Database): void {
             INSERT INTO memories_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
         END;
 
+        CREATE VIRTUAL TABLE IF NOT EXISTS memories_trigram
+            USING fts5(content, tags, tokenize="trigram");
+
+        CREATE TRIGGER IF NOT EXISTS memories_trigram_ai AFTER INSERT ON memories BEGIN
+            INSERT INTO memories_trigram(rowid, content, tags) VALUES (new.id, new.content, new.tags);
+        END;
+        CREATE TRIGGER IF NOT EXISTS memories_trigram_ad AFTER DELETE ON memories BEGIN
+            DELETE FROM memories_trigram WHERE rowid = old.id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS memories_trigram_au AFTER UPDATE ON memories BEGIN
+            DELETE FROM memories_trigram WHERE rowid = old.id;
+            INSERT INTO memories_trigram(rowid, content, tags) VALUES (new.id, new.content, new.tags);
+        END;
+
         CREATE TABLE IF NOT EXISTS observation_queue (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             project_id INTEGER NOT NULL REFERENCES projects(id),
@@ -189,6 +203,14 @@ function initSchema(db: Database.Database): void {
         INSERT OR IGNORE INTO projects (path, name) VALUES ('_global', 'global')
     `,
     ).run();
+
+    // Backfill trigram FTS from existing memories (idempotent)
+    const trigramCount = (db.prepare('SELECT COUNT(*) as c FROM memories_trigram').get() as any).c;
+    const memoryCount = (db.prepare('SELECT COUNT(*) as c FROM memories').get() as any).c;
+    if (trigramCount < memoryCount) {
+        db.exec('DELETE FROM memories_trigram');
+        db.exec('INSERT INTO memories_trigram(rowid, content, tags) SELECT id, content, tags FROM memories');
+    }
 }
 
 // ── Project queries ─────────────────────────────────────────────
@@ -367,6 +389,49 @@ export function searchMemories(
         JOIN memories_fts f ON m.id = f.rowid
         JOIN projects p ON m.project_id = p.id
         WHERE memories_fts MATCH ?
+    `;
+    const params: any[] = [query];
+
+    if (projectPath) {
+        sql += " AND (p.path = ? OR p.path = '_global')";
+        params.push(projectPath);
+    }
+    if (tag) {
+        sql += ' AND m.tags LIKE ?';
+        params.push(`%${tag}%`);
+    }
+    if (category) {
+        sql += ' AND m.category = ?';
+        params.push(category);
+    }
+    if (domain) {
+        sql += ' AND m.domain = ?';
+        params.push(domain);
+    }
+    sql += ' ORDER BY m.importance DESC, m.created_at DESC';
+    if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+    }
+
+    return db.prepare(sql).all(...params);
+}
+
+export function searchMemoriesFuzzy(
+    query: string,
+    projectPath?: string,
+    tag?: string,
+    category?: string,
+    limit = 20,
+    domain?: string,
+): any[] {
+    const db = getDb();
+    let sql = `
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
+        FROM memories m
+        JOIN memories_trigram f ON m.id = f.rowid
+        JOIN projects p ON m.project_id = p.id
+        WHERE memories_trigram MATCH ?
     `;
     const params: any[] = [query];
 
