@@ -136,16 +136,16 @@ function initSchema(db: Database.Database): void {
         END;
 
         CREATE VIRTUAL TABLE IF NOT EXISTS memories_trigram
-            USING fts5(content, tags, tokenize="trigram");
+            USING fts5(content, tags, content=memories, content_rowid=id, tokenize="trigram");
 
         CREATE TRIGGER IF NOT EXISTS memories_trigram_ai AFTER INSERT ON memories BEGIN
             INSERT INTO memories_trigram(rowid, content, tags) VALUES (new.id, new.content, new.tags);
         END;
         CREATE TRIGGER IF NOT EXISTS memories_trigram_ad AFTER DELETE ON memories BEGIN
-            DELETE FROM memories_trigram WHERE rowid = old.id;
+            INSERT INTO memories_trigram(memories_trigram, rowid, content, tags) VALUES ('delete', old.id, old.content, old.tags);
         END;
         CREATE TRIGGER IF NOT EXISTS memories_trigram_au AFTER UPDATE ON memories BEGIN
-            DELETE FROM memories_trigram WHERE rowid = old.id;
+            INSERT INTO memories_trigram(memories_trigram, rowid, content, tags) VALUES ('delete', old.id, old.content, old.tags);
             INSERT INTO memories_trigram(rowid, content, tags) VALUES (new.id, new.content, new.tags);
         END;
 
@@ -208,8 +208,7 @@ function initSchema(db: Database.Database): void {
     const trigramCount = (db.prepare('SELECT COUNT(*) as c FROM memories_trigram').get() as any).c;
     const memoryCount = (db.prepare('SELECT COUNT(*) as c FROM memories').get() as any).c;
     if (trigramCount < memoryCount) {
-        db.exec('DELETE FROM memories_trigram');
-        db.exec('INSERT INTO memories_trigram(rowid, content, tags) SELECT id, content, tags FROM memories');
+        db.exec("INSERT INTO memories_trigram(memories_trigram) VALUES('rebuild')");
     }
 }
 
