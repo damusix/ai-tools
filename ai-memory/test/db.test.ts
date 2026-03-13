@@ -135,6 +135,15 @@ describe('memories', () => {
         expect(byCat[0].content).toBe('memory beta');
     });
 
+    it('listMemories with limit=0 returns all results', () => {
+        const proj = getOrCreateProject('/test/limit-zero');
+        for (let i = 0; i < 5; i++) {
+            insertMemory(proj.id, `mem-${i}`, '', 'fact', 3, '');
+        }
+        const all = listMemories('/test/limit-zero', undefined, undefined, 0);
+        expect(all.length).toBe(5);
+    });
+
     it('deleteMemory removes from table and FTS is cleaned by trigger', () => {
         const proj = getOrCreateProject('/test/del');
         const id = insertMemory(proj.id, 'ephemeral knowledge about rust borrow checker', 'rust', 'fact', 3, '');

@@ -102,7 +102,7 @@ export function createMcpServer(): McpServer {
                 project: z.string().optional(),
                 tag: z.string().optional(),
                 category: z.string().optional().describe('Filter by category. Use list_categories to see options.'),
-                limit: z.number().default(50),
+                limit: z.number().default(500).describe('Max results. Use 0 for unlimited.'),
                 domain: z.string().optional().describe('Filter by domain'),
             }),
         },
