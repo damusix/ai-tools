@@ -77,6 +77,7 @@ const App: Component = () => {
     const [stopConfirm, setStopConfirm] = createSignal(false);
     const [stopping, setStopping] = createSignal(false);
     const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
+    const [filter, setFilter] = createSignal<{ domain?: string; category?: string } | null>(null);
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
 
     const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>({});
@@ -93,8 +94,11 @@ const App: Component = () => {
         setCollapsedCategories(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    const clearFilter = () => setFilter(null);
+
     const selectProject = (path: string) => {
         setProject(path);
+        setFilter(null);
         if (path) {
             localStorage.setItem(STORAGE_KEY, path);
         } else {
@@ -218,10 +222,14 @@ const App: Component = () => {
     });
 
     const [memories] = createResource(
-        () => ({ project: project(), key: refreshKey() }),
-        ({ project: p }) => {
-            const qs = p ? `?project=${encodeURIComponent(p)}&limit=100` : '?limit=100';
-            return api<Memory[]>('/api/memories' + qs);
+        () => ({ project: project(), key: refreshKey(), filter: filter() }),
+        ({ project: p, filter: f }) => {
+            const params = new URLSearchParams();
+            if (p) params.set('project', p);
+            if (f?.domain) params.set('domain', f.domain);
+            if (f?.category) params.set('category', f.category);
+            params.set('limit', f ? '500' : '100');
+            return api<Memory[]>('/api/memories?' + params.toString());
         },
     );
 
@@ -482,6 +490,23 @@ const App: Component = () => {
 
                     {/* Memories main panel */}
                     <main class="flex-1 overflow-y-auto p-4">
+                        <Show when={filter()}>
+                            <div class="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                                <Icon name="sliders" size={14} class="text-sky-400" />
+                                <span class="text-xs text-sky-300">
+                                    Filtering: <span class="font-semibold">{filter()!.domain}</span>
+                                    <Show when={filter()!.category}>
+                                        {' > '}<span class="font-semibold">{filter()!.category}</span>
+                                    </Show>
+                                </span>
+                                <button
+                                    onClick={clearFilter}
+                                    class="ml-auto text-xs text-neutral-500 hover:text-neutral-300 flex items-center gap-1"
+                                >
+                                    <Icon name="x" size={12} /> Clear
+                                </button>
+                            </div>
+                        </Show>
                         <Show
                             when={(memories()?.length ?? 0) > 0}
                             fallback={<div class="text-neutral-500 text-xs text-center py-8 flex flex-col items-center gap-2"><Icon name="brain" size={24} /><span>No memories yet</span></div>}
@@ -535,8 +560,8 @@ const App: Component = () => {
                                                             return (
                                                                 /* Domain box */
                                                                 <div class="rounded-lg border border-neutral-700/30 bg-neutral-800/30 overflow-hidden">
-                                                                    <button
-                                                                        class="w-full flex items-center justify-between py-2 px-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-800/60 transition-colors"
+                                                                    <div
+                                                                        class="w-full flex items-center justify-between py-2 px-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-800/60 transition-colors cursor-pointer group/dom"
                                                                         onClick={() => toggleDomain(domKey)}
                                                                     >
                                                                         <span class="capitalize flex items-center gap-1.5">
@@ -544,8 +569,17 @@ const App: Component = () => {
                                                                             {domGroup.domain}
                                                                             <span class="text-neutral-600 font-normal">({domGroup.categories.reduce((n, cat) => n + cat.memories.length, 0)})</span>
                                                                         </span>
-                                                                        <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
-                                                                    </button>
+                                                                        <span class="flex items-center gap-1">
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setFilter({ domain: domGroup.domain }); }}
+                                                                                class="p-1 rounded text-neutral-600 hover:text-sky-400 hover:bg-sky-400/10 opacity-0 group-hover/dom:opacity-100 transition-opacity"
+                                                                                title={`Filter by ${domGroup.domain}`}
+                                                                            >
+                                                                                <Icon name="sliders" size={12} />
+                                                                            </button>
+                                                                            <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
+                                                                        </span>
+                                                                    </div>
                                                                     <Show when={!collapsedDomains()[domKey]}>
                                                                         <div class="border-t border-neutral-700/30 p-3 flex flex-col gap-3">
                                                                             <For each={domGroup.categories}>
@@ -554,8 +588,8 @@ const App: Component = () => {
                                                                                     return (
                                                                                         /* Category box */
                                                                                         <div class="rounded-lg border border-neutral-800 bg-neutral-900/30 overflow-hidden">
-                                                                                            <button
-                                                                                                class="w-full flex items-center justify-between py-2 px-3 text-xs font-medium text-neutral-400 hover:text-neutral-300 hover:bg-neutral-800/50"
+                                                                                            <div
+                                                                                                class="w-full flex items-center justify-between py-2 px-3 text-xs font-medium text-neutral-400 hover:text-neutral-300 hover:bg-neutral-800/50 cursor-pointer group/cat"
                                                                                                 onClick={() => toggleCategory(catKey)}
                                                                                             >
                                                                                                 <span class="capitalize flex items-center gap-1.5">
@@ -563,8 +597,17 @@ const App: Component = () => {
                                                                                                     {catGroup.category}
                                                                                                     <span class="text-neutral-600 font-normal">({catGroup.memories.length})</span>
                                                                                                 </span>
-                                                                                                <Icon name={collapsedCategories()[catKey] ? 'chevron-right' : 'chevron-down'} size={10} class="text-neutral-600" />
-                                                                                            </button>
+                                                                                                <span class="flex items-center gap-1">
+                                                                                                    <button
+                                                                                                        onClick={(e) => { e.stopPropagation(); setFilter({ domain: domGroup.domain, category: catGroup.category }); }}
+                                                                                                        class="p-1 rounded text-neutral-600 hover:text-sky-400 hover:bg-sky-400/10 opacity-0 group-hover/cat:opacity-100 transition-opacity"
+                                                                                                        title={`Filter by ${domGroup.domain} > ${catGroup.category}`}
+                                                                                                    >
+                                                                                                        <Icon name="sliders" size={10} />
+                                                                                                    </button>
+                                                                                                    <Icon name={collapsedCategories()[catKey] ? 'chevron-right' : 'chevron-down'} size={10} class="text-neutral-600" />
+                                                                                                </span>
+                                                                                            </div>
                                                                                             <Show when={!collapsedCategories()[catKey]}>
                                                                                                 <div class="flex flex-wrap gap-3 p-3 border-t border-neutral-800">
                                                                                                     <For each={catGroup.memories}>
