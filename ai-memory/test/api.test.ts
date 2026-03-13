@@ -171,4 +171,16 @@ describe('API', () => {
         const res = await app.request('/api/search');
         expect(res.status).toBe(400);
     });
+
+    it('GET /api/taxonomy-summary returns domain/category/tag summary', async () => {
+        const app = makeApp();
+        const proj = getOrCreateProject('_global');
+        insertMemory(proj.id, 'test memory', 'typescript', 'fact', 3, '', 'frontend');
+
+        const res = await app.request('/api/taxonomy-summary');
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.summary).toContain('frontend');
+        expect(json.summary).toContain('fact');
+    });
 });

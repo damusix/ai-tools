@@ -20,6 +20,7 @@ import {
     insertCategory,
     updateCategory,
     deleteCategory,
+    listTags,
     searchMemories,
     searchMemoriesFuzzy,
     transferProject,
@@ -359,6 +360,20 @@ export function createApp(): Hono {
         }
 
         return c.json(results);
+    });
+
+    app.get('/api/taxonomy-summary', (c) => {
+        const project = c.req.query('project');
+        const domains = listDomains(project);
+        const categories = listCategories(project);
+        const tags = listTags(project);
+
+        const domainStr = domains.filter(d => d.count > 0).map(d => `${d.name}(${d.count})`).join(', ');
+        const categoryStr = categories.filter(c => c.count > 0).map(c => `${c.name}(${c.count})`).join(', ');
+        const tagStr = tags.slice(0, 20).map(t => `${t.tag}(${t.count})`).join(', ');
+
+        const summary = `Domains: ${domainStr || 'none'}\nCategories: ${categoryStr || 'none'}\nTop tags: ${tagStr || 'none'}`;
+        return c.json({ summary });
     });
 
     // ── HTTP API: Transfer project memories to a new path ────────────
