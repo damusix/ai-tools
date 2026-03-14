@@ -1,0 +1,17 @@
+{
+    "name": "@damusix/cli",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "@bomb.sh/args": "latest",
+        "@clack/prompts": "latest"
+    },
+    "devDependencies": {
+        "@types/bun": "latest",
+        "vitest": "latest"
+    },
+    "scripts": {
+        "test": "vitest run"
+    }
+}
