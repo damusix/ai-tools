@@ -597,6 +597,7 @@ const App: Component = () => {
                                                                             <span class="capitalize flex items-center gap-1.5">
                                                                                 <i class={`fa-solid ${domainIconMap()[domGroup.domain] || 'fa-folder'}`} style="font-size: 14px"></i>
                                                                                 {domGroup.domain}
+                                                                                <span class="text-neutral-600 font-normal text-xs">({domGroup.categories.reduce((sum, c) => sum + c.memories.length, 0)})</span>
                                                                             </span>
                                                                             <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
                                                                         </button>
