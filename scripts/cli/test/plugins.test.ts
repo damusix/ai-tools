@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
-import { discoverPlugins, readVersion, writeVersion } from "../src/lib/plugins.js";
+import { discoverPlugins, readVersion, writeVersion, bumpVersion } from "../src/lib/plugins.js";
 
 const TMP = join(fileURLToPath(import.meta.url), "../../../tmp/test-plugins");
 
@@ -56,6 +56,13 @@ describe("discoverPlugins", () => {
     it("throws if marketplace.json is missing", () => {
         expect(() => discoverPlugins(TMP + "/nonexistent")).toThrow();
     });
+});
+
+describe("bumpVersion", () => {
+    it("bumps patch", () => expect(bumpVersion("1.2.3", "patch")).toBe("1.2.4"));
+    it("bumps minor", () => expect(bumpVersion("1.2.3", "minor")).toBe("1.3.0"));
+    it("bumps major", () => expect(bumpVersion("1.2.3", "major")).toBe("2.0.0"));
+    it("throws on invalid semver", () => expect(() => bumpVersion("bad", "patch")).toThrow());
 });
 
 describe("readVersion / writeVersion", () => {

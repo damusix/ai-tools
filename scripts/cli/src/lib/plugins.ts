@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, resolve } from "path";
-import type { PluginInfo } from "../types.js";
+import type { PluginInfo, BumpType } from "../types.js";
 
 interface MarketplaceEntry {
     name: string;
@@ -58,3 +58,22 @@ export function writeVersion(filePath: string, newVersion: string): void {
     json.version = newVersion;
     writeFileSync(filePath, JSON.stringify(json, null, 4) + "\n");
 }
+
+export function bumpVersion(current: string, bump: BumpType): string {
+    const parts = current.split(".").map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) {
+        throw new Error(`Invalid semver: ${current}`);
+    }
+
+    const [major, minor, patch] = parts;
+
+    switch (bump) {
+        case "major":
+            return `${major + 1}.0.0`;
+        case "minor":
+            return `${major}.${minor + 1}.0`;
+        case "patch":
+            return `${major}.${minor}.${patch + 1}`;
+    }
+}
+
