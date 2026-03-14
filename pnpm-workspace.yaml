@@ -1,0 +1,4 @@
+packages:
+    - ai-memory
+    - cc-auto-approve-fix
+    - scripts/cli
