@@ -15,10 +15,10 @@ export const MemoryCard: Component<{
     const m = props.memory;
     const width = () => props.widthClass || 'w-[calc(33.333%-11px)] min-w-[280px]';
     return (
-        <div class={`${width()} flex flex-col rounded-lg border border-sky-400/10 bg-sky-400/[0.03] p-4 hover:border-sky-400/20 transition-colors ${props.animation || ''}`}>
+        <div class={`${width()} flex flex-col rounded-lg border border-[#d77757]/10 bg-[#d77757]/[0.03] p-4 hover:border-[#d77757]/20 transition-colors ${props.animation || ''}`}>
             <div class="flex items-start justify-between gap-3 mb-2">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-sky-400/10 text-sky-300/80 flex items-center gap-1">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-[#d77757]/10 text-[#d77757]/80 flex items-center gap-1">
                         <i class={`fa-solid ${props.categoryIcon || 'fa-bookmark'}`} style="font-size: 11px"></i>
                         {m.category}
                     </span>
@@ -60,7 +60,7 @@ export const MemoryCard: Component<{
                     <div class="flex flex-wrap gap-1.5 mb-2">
                         <For each={m.tags.split(',').filter(Boolean)}>
                             {(tag) => (
-                                <span class="px-1.5 py-0.5 rounded text-[10px] bg-sky-400/5 text-neutral-500 flex items-center gap-0.5">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] bg-[#d77757]/5 text-neutral-500 flex items-center gap-0.5">
                                     <Icon name="tag" size={9} />
                                     {tag.trim()}
                                 </span>

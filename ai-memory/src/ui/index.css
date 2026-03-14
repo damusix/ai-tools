@@ -72,6 +72,6 @@
 .help-prose ul { list-style-type: disc; }
 .help-prose ol { list-style-type: decimal; }
 .help-prose strong { color: #e5e7eb; font-weight: 600; }
-.help-prose a { color: #38bdf8; text-decoration: underline; text-underline-offset: 2px; }
+.help-prose a { color: #d77757; text-decoration: underline; text-underline-offset: 2px; }
 .help-prose code { background: rgba(255,255,255,0.06); padding: 0.15em 0.35em; border-radius: 3px; font-size: 0.85em; }
 .help-prose hr { border-color: #333; margin: 1rem 0; }

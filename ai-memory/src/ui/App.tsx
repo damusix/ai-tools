@@ -346,7 +346,7 @@ const App: Component = () => {
     const InfoBtn: Component<{ topic: string }> = (p) => (
         <button
             onClick={() => openHelp(p.topic)}
-            class="p-1 rounded text-neutral-600 hover:text-sky-400 transition-colors"
+            class="p-1 rounded text-neutral-600 hover:text-[#d77757] transition-colors"
             title="Help"
         >
             <Icon name="info" size={13} />
@@ -363,7 +363,7 @@ const App: Component = () => {
                         ai-memory
                     </h1>
                     <div class="flex gap-3 text-xs">
-                        <span class="text-sky-300/70 flex items-center gap-1">
+                        <span class="text-[#d77757]/70 flex items-center gap-1">
                             <Icon name="brain" size={12} />
                             {stats()?.memories ?? 0} memories
                         </span>
@@ -376,14 +376,14 @@ const App: Component = () => {
                 <div class="flex items-center gap-2">
 <button
                         onClick={() => setSettingsOpen(true)}
-                        class="px-2 py-1.5 rounded text-neutral-500 hover:text-sky-400 transition-colors flex items-center"
+                        class="px-2 py-1.5 rounded text-neutral-500 hover:text-[#d77757] transition-colors flex items-center"
                         title="Settings"
                     >
                         <Icon name="gear" size={15} />
                     </button>
                     <button
                         onClick={() => openHelp('about')}
-                        class="px-2 py-1.5 rounded text-neutral-500 hover:text-sky-400 transition-colors flex items-center"
+                        class="px-2 py-1.5 rounded text-neutral-500 hover:text-[#d77757] transition-colors flex items-center"
                         title="Help"
                     >
                         <Icon name="info" size={15} />
@@ -511,7 +511,7 @@ const App: Component = () => {
                                 <input
                                     type="text"
                                     placeholder="Search memories..."
-                                    class="w-full px-3 py-1.5 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-sky-500"
+                                    class="w-full px-3 py-1.5 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-[#d77757]"
                                     value={searchQuery()}
                                     onInput={(e) => setSearchQuery(e.currentTarget.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSearch(searchQuery())}
@@ -527,9 +527,9 @@ const App: Component = () => {
                             </Show>
                         </div>
                         <Show when={filter()}>
-                            <div class="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20">
-                                <Icon name="sliders" size={14} class="text-sky-400" />
-                                <span class="text-xs text-sky-300">
+                            <div class="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#d77757]/10 border border-[#d77757]/20">
+                                <Icon name="sliders" size={14} class="text-[#d77757]" />
+                                <span class="text-xs text-[#d77757]">
                                     Filtering: <span class="font-semibold">{filter()!.domain}</span>
                                     <Show when={filter()!.category}>
                                         {' > '}<span class="font-semibold">{filter()!.category}</span>
@@ -562,7 +562,7 @@ const App: Component = () => {
                                                             onClick={() => toggleProject(projGroup.project)}
                                                             title={projectDescMap()[projGroup.project] || projGroup.project}
                                                         >
-                                                            <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
+                                                            <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-[#d77757]`} style="font-size: 16px"></i>
                                                             <div class="flex flex-col items-start min-w-0">
                                                                 <span class="text-sm font-bold text-neutral-200 truncate max-w-full">{shortPath(projGroup.project)}</span>
                                                                 <Show when={projectDescMap()[projGroup.project]}>
@@ -609,7 +609,7 @@ const App: Component = () => {
                                                                             <span class="flex items-center gap-1">
                                                                                 <button
                                                                                     onClick={(e) => { e.stopPropagation(); setFilter({ domain: domGroup.domain }); }}
-                                                                                    class="p-1 rounded text-neutral-600 hover:text-sky-400 hover:bg-sky-400/10 opacity-0 group-hover/dom:opacity-100 transition-opacity"
+                                                                                    class="p-1 rounded text-neutral-600 hover:text-[#d77757] hover:bg-[#d77757]/10 opacity-0 group-hover/dom:opacity-100 transition-opacity"
                                                                                     title={`Filter by ${domGroup.domain}`}
                                                                                 >
                                                                                     <Icon name="sliders" size={12} />
@@ -637,7 +637,7 @@ const App: Component = () => {
                                                                                                     <span class="flex items-center gap-1">
                                                                                                         <button
                                                                                                             onClick={(e) => { e.stopPropagation(); setFilter({ domain: domGroup.domain, category: catGroup.category }); }}
-                                                                                                            class="p-1 rounded text-neutral-600 hover:text-sky-400 hover:bg-sky-400/10 opacity-0 group-hover/cat:opacity-100 transition-opacity"
+                                                                                                            class="p-1 rounded text-neutral-600 hover:text-[#d77757] hover:bg-[#d77757]/10 opacity-0 group-hover/cat:opacity-100 transition-opacity"
                                                                                                             title={`Filter by ${domGroup.domain} > ${catGroup.category}`}
                                                                                                         >
                                                                                                             <Icon name="sliders" size={10} />
@@ -679,7 +679,7 @@ const App: Component = () => {
                         }>
                             <div>
                                 <h3 class="text-sm font-semibold text-neutral-300 mb-3 flex items-center gap-2">
-                                    <Icon name="brain" size={14} class="text-sky-400" />
+                                    <Icon name="brain" size={14} class="text-[#d77757]" />
                                     Search Results
                                     <span class="text-xs text-neutral-500">({searchResults()!.length})</span>
                                 </h3>

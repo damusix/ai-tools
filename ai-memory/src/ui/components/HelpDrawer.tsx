@@ -48,7 +48,7 @@ const HelpDrawer: Component<{
             >
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-sm font-semibold text-neutral-200 flex items-center gap-2">
-                        <Icon name="info" size={14} class="text-sky-400" />
+                        <Icon name="info" size={14} class="text-[#d77757]" />
                         Help
                     </h2>
                     <button
