@@ -1,51 +1,51 @@
 {
-  "name": "ai-memory",
-  "version": "1.0.0",
-  "description": "Persistent memory plugin for Claude Code",
-  "type": "module",
-  "main": "dist/server.js",
-  "scripts": {
-    "build": "bash scripts/build.sh",
-    "build:server": "tsup",
-    "build:ui": "vite build",
-    "dev": "tsup --watch",
-    "dev:ui": "vite dev",
-    "start": "node dist/server.js",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "packageManager": "pnpm@10.17.1",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild"
-    ]
-  },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.52",
-    "@hono/node-server": "1.19.9",
-    "@modelcontextprotocol/sdk": "1.27.0",
-    "@remark-embedder/core": "^3.0.3",
-    "better-sqlite3": "12.6.2",
-    "better-sse": "0.16.1",
-    "hono": "4.12.2",
-    "remark": "^15.0.1",
-    "remark-directive": "^4.0.0",
-    "remark-gfm": "^4.0.1",
-    "remark-html": "^16.0.1",
-    "solid-js": "^1.9.11",
-    "yaml": "^2.8.2",
-    "zod": "4.3.6"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.2.1",
-    "@types/better-sqlite3": "7.6.13",
-    "@types/node": "25.3.0",
-    "tailwindcss": "^4.2.1",
-    "tsup": "8.5.1",
-    "typescript": "5.9.3",
-    "vite": "^7.3.1",
-    "vite-plugin-solid": "^2.11.10",
-    "vitest": "4.0.18"
-  }
+    "name": "ai-memory",
+    "version": "1.1.0",
+    "description": "Persistent memory plugin for Claude Code",
+    "type": "module",
+    "main": "dist/server.js",
+    "scripts": {
+        "build": "bash scripts/build.sh",
+        "build:server": "tsup",
+        "build:ui": "vite build",
+        "dev": "tsup --watch",
+        "dev:ui": "vite dev",
+        "start": "node dist/server.js",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "packageManager": "pnpm@10.17.1",
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "better-sqlite3",
+            "esbuild"
+        ]
+    },
+    "dependencies": {
+        "@anthropic-ai/claude-agent-sdk": "0.2.52",
+        "@hono/node-server": "1.19.9",
+        "@modelcontextprotocol/sdk": "1.27.0",
+        "@remark-embedder/core": "^3.0.3",
+        "better-sqlite3": "12.6.2",
+        "better-sse": "0.16.1",
+        "hono": "4.12.2",
+        "remark": "^15.0.1",
+        "remark-directive": "^4.0.0",
+        "remark-gfm": "^4.0.1",
+        "remark-html": "^16.0.1",
+        "solid-js": "^1.9.11",
+        "yaml": "^2.8.2",
+        "zod": "4.3.6"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "^4.2.1",
+        "@types/better-sqlite3": "7.6.13",
+        "@types/node": "25.3.0",
+        "tailwindcss": "^4.2.1",
+        "tsup": "8.5.1",
+        "typescript": "5.9.3",
+        "vite": "^7.3.1",
+        "vite-plugin-solid": "^2.11.10",
+        "vitest": "4.0.18"
+    }
 }

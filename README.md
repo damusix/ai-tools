@@ -44,6 +44,46 @@ Docs: [`cc-auto-approve-fix/README.md`](./cc-auto-approve-fix/README.md)
 - Plugin names are stable in the `damusix-ai-tools` marketplace catalog
 - Memory stays local and command auto-approval remains rule-driven
 
+## Contributing
+
+
+This repo is a pnpm workspace. Install dependencies from the root:
+
+```shell
+pnpm install
+```
+
+### Versioning
+
+Plugin versions are managed by a CLI tool at `scripts/cli/`. It bumps versions, syncs all manifest files, generates changelogs from git history, and creates git tags.
+
+**Interactive mode** — select plugins and bump types via prompts:
+
+```shell
+pnpm dev version
+```
+
+**Flag mode** — bump a single plugin directly:
+
+```shell
+pnpm dev version ai-memory patch
+pnpm dev version auto-approve-compound-bash minor
+```
+
+Plugin names come from `.claude-plugin/marketplace.json`, not directory names. The CLI requires a clean working tree before running.
+
+What it does per plugin:
+1. Bumps the version in the source-of-truth file (`package.json` or `plugin.json`)
+2. Syncs version across `marketplace.json` and `plugin.json`
+3. Regenerates `CHANGELOG.md` from conventional commits (`feat`, `fix`, breaking changes)
+4. Commits as `release: <plugin>@<version>` and creates a git tag
+
+### Adding a new plugin
+
+1. Add the plugin directory to `pnpm-workspace.yaml`
+2. Add an entry to `.claude-plugin/marketplace.json` with `name`, `version`, and `source`
+3. The versioning CLI discovers it automatically
+
 ## License
 
 MIT
