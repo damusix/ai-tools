@@ -8,6 +8,9 @@ import {
     getOrCreateProject,
     insertMemory,
     searchMemories,
+    listMemories,
+    searchObservations,
+    insertObservation,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -72,5 +75,40 @@ describe('Trigram FTS5', () => {
         initDb(dbPath);
         const after = (getDb().prepare('SELECT COUNT(*) as c FROM memories_trigram').get() as any).c;
         expect(after).toBe(2);
+    });
+});
+
+describe('limit=0 (unlimited)', () => {
+    it('searchMemories with limit=0 returns all results', () => {
+        const proj = getOrCreateProject('/test/limit');
+        for (let i = 0; i < 25; i++) {
+            insertMemory(proj.id, `memory ${i}`, `tag${i}`, 'fact', 3, '', 'general');
+        }
+        const limited = searchMemories('memory*', '/test/limit', undefined, undefined, 5);
+        expect(limited).toHaveLength(5);
+        const unlimited = searchMemories('memory*', '/test/limit', undefined, undefined, 0);
+        expect(unlimited).toHaveLength(25);
+    });
+
+    it('listMemories with limit=0 returns all results', () => {
+        const proj = getOrCreateProject('/test/limit2');
+        for (let i = 0; i < 25; i++) {
+            insertMemory(proj.id, `list item ${i}`, '', 'fact', 3, '', 'general');
+        }
+        const limited = listMemories('/test/limit2', undefined, undefined, 5);
+        expect(limited).toHaveLength(5);
+        const unlimited = listMemories('/test/limit2', undefined, undefined, 0);
+        expect(unlimited).toHaveLength(25);
+    });
+
+    it('searchObservations with limit=0 returns all results', () => {
+        const proj = getOrCreateProject('/test/limit3');
+        for (let i = 0; i < 25; i++) {
+            insertObservation(proj.id, `obs ${i}`, 'test');
+        }
+        const limited = searchObservations('obs*', '/test/limit3', 5);
+        expect(limited).toHaveLength(5);
+        const unlimited = searchObservations('obs*', '/test/limit3', 0);
+        expect(unlimited).toHaveLength(25);
     });
 });

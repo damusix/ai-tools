@@ -298,8 +298,11 @@ export function searchObservations(query: string, projectPath?: string, limit = 
         sql += " AND (p.path = ? OR p.path = '_global')";
         params.push(projectPath);
     }
-    sql += ` ORDER BY o.created_at DESC LIMIT ?`;
-    params.push(limit);
+    sql += ' ORDER BY o.created_at DESC';
+    if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+    }
 
     return db.prepare(sql).all(...params);
 }
@@ -414,8 +417,11 @@ export function searchMemories(
         sql += ' AND m.domain = ?';
         params.push(domain);
     }
-    sql += ' ORDER BY m.importance DESC, m.created_at DESC LIMIT ?';
-    params.push(limit);
+    sql += ' ORDER BY m.importance DESC, m.created_at DESC';
+    if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+    }
 
     return db.prepare(sql).all(...params);
 }
@@ -443,15 +449,17 @@ export function listMemories(projectPath?: string, tag?: string, category?: stri
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const sql = `
+    let sql = `
         SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
         FROM memories m
         JOIN projects p ON m.project_id = p.id
         ${where}
         ORDER BY m.importance DESC, m.created_at DESC
-        LIMIT ?
     `;
-    params.push(limit);
+    if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+    }
 
     return db.prepare(sql).all(...params);
 }
