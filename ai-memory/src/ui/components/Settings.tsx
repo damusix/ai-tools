@@ -304,8 +304,26 @@ const TaxonomySection: Component<{
         }
     };
 
-    const handleDelete = (item: TaxonomyItem) => {
-        setDeleteTarget(item);
+    const handleDelete = async (item: TaxonomyItem) => {
+        if (item.count > 0) {
+            setDeleteTarget(item);
+            return;
+        }
+        const endpoint = props.type === 'domain'
+            ? `/api/domains/${encodeURIComponent(item.name)}`
+            : `/api/categories/${encodeURIComponent(item.name)}`;
+        try {
+            const res = await fetch(endpoint, { method: 'DELETE' });
+            if (res.ok) {
+                props.showToast(`${props.type} "${item.name}" deleted`);
+                props.onRefresh();
+            } else {
+                const err = await res.json();
+                props.showToast(err.error || 'Delete failed');
+            }
+        } catch {
+            props.showToast('Delete failed');
+        }
     };
 
     const confirmDelete = async () => {

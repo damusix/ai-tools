@@ -84,17 +84,17 @@ importers:
   scripts/cli:
     dependencies:
       '@bomb.sh/args':
-        specifier: latest
+        specifier: ^0.3.1
         version: 0.3.1
       '@clack/prompts':
-        specifier: latest
+        specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
       '@types/bun':
-        specifier: latest
+        specifier: ^1.3.10
         version: 1.3.10
       vitest:
-        specifier: latest
+        specifier: ^4.1.0
         version: 4.1.0(@types/node@25.3.0)(vite@7.3.1(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1)(yaml@2.8.2))
 
 packages:
