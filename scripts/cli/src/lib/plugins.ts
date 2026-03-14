@@ -49,6 +49,9 @@ export function discoverPlugins(repoRoot: string): PluginInfo[] {
 export function readVersion(filePath: string): string {
     const raw = readFileSync(filePath, "utf-8");
     const json = JSON.parse(raw);
+    if (typeof json.version !== "string") {
+        throw new Error(`No "version" field in ${filePath}`);
+    }
     return json.version;
 }
 

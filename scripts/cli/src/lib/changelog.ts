@@ -107,7 +107,7 @@ export function renderChangelog(groups: VersionGroup[]): string {
 export function getGitLog(repoRoot: string, pluginSourceDir: string): ParsedCommit[] {
     // %x1E (record separator) delimits commits, %x00 (null) delimits fields within a commit
     const result = Bun.spawnSync(
-        ["git", "log", "--format=%H%x00%s%x00%B%x1E", "--", pluginSourceDir + "/"],
+        ["git", "log", "--format=%H%x00%s%x00%b%x1E", "--", pluginSourceDir + "/"],
         { cwd: repoRoot }
     );
 
@@ -132,7 +132,7 @@ export function getGitLog(repoRoot: string, pluginSourceDir: string): ParsedComm
 export function getVersionTags(repoRoot: string, pluginName: string): Record<string, string> {
     const prefix = `${pluginName}@`;
     const result = Bun.spawnSync(
-        ["git", "tag", "--list", `${prefix}*`, "--format=%(objectname:short) %(refname:short)"],
+        ["git", "tag", "--list", `${prefix}*`, "--format=%(objectname) %(refname:short)"],
         { cwd: repoRoot }
     );
 

@@ -90,12 +90,18 @@ function runFlagMode(positionalArgs: string[]) {
 
         // 4. Commit and tag
         const filesToStage = [plugin.versionFile, ...synced, changelogPath];
-        Bun.spawnSync(["git", "add", ...filesToStage], { cwd: repoRoot });
+        const addResult = Bun.spawnSync(["git", "add", ...filesToStage], { cwd: repoRoot });
+        if (addResult.exitCode !== 0) {
+            throw new Error(`git add failed: ${addResult.stderr.toString()}`);
+        }
         const commitResult = Bun.spawnSync(["git", "commit", "-m", `release: ${tag}`], { cwd: repoRoot });
         if (commitResult.exitCode !== 0) {
             throw new Error(`git commit failed: ${commitResult.stderr.toString()}`);
         }
-        Bun.spawnSync(["git", "tag", tag], { cwd: repoRoot });
+        const tagResult = Bun.spawnSync(["git", "tag", tag], { cwd: repoRoot });
+        if (tagResult.exitCode !== 0) {
+            throw new Error(`git tag failed: ${tagResult.stderr.toString()}`);
+        }
         console.log(`  Created tag ${tag}`);
     } catch (err) {
         console.error(`System error: ${(err as Error).message}`);
@@ -216,14 +222,20 @@ async function runInteractive() {
     // Single commit for all plugins
     try {
         const commitMsg = `release: ${allTags.join(", ")}`;
-        Bun.spawnSync(["git", "add", ...allFilesToStage], { cwd: repoRoot });
+        const addResult = Bun.spawnSync(["git", "add", ...allFilesToStage], { cwd: repoRoot });
+        if (addResult.exitCode !== 0) {
+            throw new Error(`git add failed: ${addResult.stderr.toString()}`);
+        }
         const commitResult = Bun.spawnSync(["git", "commit", "-m", commitMsg], { cwd: repoRoot });
         if (commitResult.exitCode !== 0) {
             throw new Error(`git commit failed: ${commitResult.stderr.toString()}`);
         }
 
         for (const tag of allTags) {
-            Bun.spawnSync(["git", "tag", tag], { cwd: repoRoot });
+            const tagResult = Bun.spawnSync(["git", "tag", tag], { cwd: repoRoot });
+            if (tagResult.exitCode !== 0) {
+                throw new Error(`git tag failed: ${tagResult.stderr.toString()}`);
+            }
         }
     } catch (err) {
         console.error(`System error: ${(err as Error).message}`);

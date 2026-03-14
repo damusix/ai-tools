@@ -23,7 +23,7 @@ export function syncVersions(repoRoot: string, plugin: PluginInfo, newVersion: s
     const pluginDir = resolve(repoRoot, plugin.source);
     const pluginJsonPath = join(pluginDir, ".claude-plugin", "plugin.json");
 
-    if (existsSync(pluginJsonPath) && pluginJsonPath !== plugin.versionFile) {
+    if (existsSync(pluginJsonPath) && resolve(pluginJsonPath) !== resolve(plugin.versionFile)) {
         const pluginRaw = readFileSync(pluginJsonPath, "utf-8");
         const pluginJson = JSON.parse(pluginRaw);
         pluginJson.version = newVersion;
