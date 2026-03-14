@@ -313,7 +313,9 @@ export function createApp(): Hono {
             const unique = [...new Set(words)].slice(0, 5);
             if (unique.length === 0) return c.json({ memories: [] });
 
-            const ftsQuery = unique.join(' OR ');
+            const filtered = unique.filter(w => w.length >= 2);
+            if (filtered.length === 0) return c.json({ memories: [] });
+            const ftsQuery = filtered.map(w => w + '*').join(' OR ');
             const results = searchMemories(ftsQuery, project, undefined, undefined, 3);
             return c.json({ memories: results });
         } catch {

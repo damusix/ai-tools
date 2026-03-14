@@ -13,6 +13,17 @@ import {
     searchObservations,
     insertObservation,
 } from '../src/db.js';
+import { createApp } from '../src/app.js';
+
+function makeApp() {
+    return createApp();
+}
+
+async function req(app: ReturnType<typeof createApp>, method: string, path: string, body?: unknown) {
+    const init: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    return app.request(path, init);
+}
 
 const TMP_DIR = join(import.meta.dirname, '.');
 let dbPath: string;
@@ -147,5 +158,59 @@ describe('limit=0 (unlimited)', () => {
         expect(limited).toHaveLength(5);
         const unlimited = searchObservations('obs*', '/test/limit3', 0);
         expect(unlimited).toHaveLength(25);
+    });
+});
+
+describe('POST /api/recall prefix wildcards', () => {
+    it('prefix match: "auth" finds "authentication"', async () => {
+        const proj = getOrCreateProject('/test/recall');
+        insertMemory(proj.id, 'authentication system uses JWT tokens', 'auth,jwt', 'solution', 4, '', 'backend');
+
+        const app = makeApp();
+        const res = await req(app, 'POST', '/api/recall', {
+            prompt: 'how does auth work',
+            project: '/test/recall',
+        });
+        const json = await res.json() as any;
+        expect(json.memories.length).toBeGreaterThan(0);
+        expect(json.memories[0].content).toContain('authentication');
+    });
+
+    it('single-char words are filtered out', async () => {
+        const proj = getOrCreateProject('/test/recall2');
+        insertMemory(proj.id, 'a test memory about nothing', 'test', 'fact', 3, '', 'general');
+
+        const app = makeApp();
+        const res = await req(app, 'POST', '/api/recall', {
+            prompt: 'a b c',
+            project: '/test/recall2',
+        });
+        const json = await res.json() as any;
+        expect(json.memories).toHaveLength(0);
+    });
+});
+
+describe('GET /api/taxonomy-summary', () => {
+    it('returns JSON with summary field', async () => {
+        const proj = getOrCreateProject('/test/taxonomy');
+        insertMemory(proj.id, 'test memory', 'typescript,api', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/taxonomy-summary?project=/test/taxonomy');
+        expect(res.status).toBe(200);
+        const json = await res.json() as any;
+        expect(typeof json.summary).toBe('string');
+        expect(json.summary).toContain('Domains:');
+        expect(json.summary).toContain('Categories:');
+    });
+
+    it('filters to items with count > 0', async () => {
+        const proj = getOrCreateProject('/test/taxonomy2');
+        insertMemory(proj.id, 'only backend memory', 'ts', 'solution', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/taxonomy-summary?project=/test/taxonomy2');
+        const json = await res.json() as any;
+        expect(json.summary).toContain('backend');
     });
 });
