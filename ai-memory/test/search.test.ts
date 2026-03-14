@@ -8,6 +8,7 @@ import {
     getOrCreateProject,
     insertMemory,
     searchMemories,
+    searchMemoriesFuzzy,
     listMemories,
     searchObservations,
     insertObservation,
@@ -75,6 +76,42 @@ describe('Trigram FTS5', () => {
         initDb(dbPath);
         const after = (getDb().prepare('SELECT COUNT(*) as c FROM memories_trigram').get() as any).c;
         expect(after).toBe(2);
+    });
+});
+
+describe('searchMemoriesFuzzy (trigram)', () => {
+    it('finds substring matches that word-based search misses', () => {
+        const proj = getOrCreateProject('/test/fuzzy');
+        insertMemory(proj.id, 'websocket connection handling', 'websocket,networking', 'fact', 3, '', 'backend');
+        insertMemory(proj.id, 'REST API authentication flow', 'auth,api', 'solution', 4, '', 'backend');
+
+        // Word-based search: "socket" does NOT match "websocket" (no prefix)
+        const wordResults = searchMemories('socket', '/test/fuzzy');
+        expect(wordResults).toHaveLength(0);
+
+        // Trigram search: "socket" DOES match "websocket" (substring)
+        const trigramResults = searchMemoriesFuzzy('socket', '/test/fuzzy');
+        expect(trigramResults.length).toBeGreaterThan(0);
+        expect(trigramResults[0].content).toContain('websocket');
+    });
+
+    it('respects domain filter', () => {
+        const proj = getOrCreateProject('/test/fuzzy2');
+        insertMemory(proj.id, 'websocket in frontend', 'ws', 'fact', 3, '', 'frontend');
+        insertMemory(proj.id, 'websocket in backend', 'ws', 'fact', 3, '', 'backend');
+
+        const results = searchMemoriesFuzzy('socket', '/test/fuzzy2', undefined, undefined, 20, 'frontend');
+        expect(results).toHaveLength(1);
+        expect(results[0].domain).toBe('frontend');
+    });
+
+    it('does not use * prefix operator (trigram does not support it)', () => {
+        const proj = getOrCreateProject('/test/fuzzy3');
+        insertMemory(proj.id, 'authentication system design', 'auth', 'solution', 4, '', 'backend');
+
+        // Raw word without *, trigram should still match substring "auth" within "authentication"
+        const results = searchMemoriesFuzzy('auth', '/test/fuzzy3');
+        expect(results.length).toBeGreaterThan(0);
     });
 });
 

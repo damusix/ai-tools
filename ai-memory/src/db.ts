@@ -426,6 +426,50 @@ export function searchMemories(
     return db.prepare(sql).all(...params);
 }
 
+export function searchMemoriesFuzzy(
+    query: string,
+    projectPath?: string,
+    tag?: string,
+    category?: string,
+    limit = 20,
+    domain?: string,
+): any[] {
+    const db = getDb();
+    let sql = `
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain,
+               m.created_at, m.updated_at, m.reason, p.path as project_path
+        FROM memories m
+        JOIN memories_trigram f ON m.id = f.rowid
+        JOIN projects p ON m.project_id = p.id
+        WHERE memories_trigram MATCH ?
+    `;
+    const params: any[] = [query];
+
+    if (projectPath) {
+        sql += " AND (p.path = ? OR p.path = '_global')";
+        params.push(projectPath);
+    }
+    if (tag) {
+        sql += ' AND m.tags LIKE ?';
+        params.push(`%${tag}%`);
+    }
+    if (category) {
+        sql += ' AND m.category = ?';
+        params.push(category);
+    }
+    if (domain) {
+        sql += ' AND m.domain = ?';
+        params.push(domain);
+    }
+    sql += ' ORDER BY rank, m.importance DESC';
+    if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+    }
+
+    return db.prepare(sql).all(...params);
+}
+
 export function listMemories(projectPath?: string, tag?: string, category?: string, limit = 50, domain?: string): any[] {
     const db = getDb();
     const conditions: string[] = [];
