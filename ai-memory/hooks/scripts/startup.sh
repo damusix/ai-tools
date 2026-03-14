@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+HOOK_LOG="$HOME/.ai-memory/hooks.log"
+exec 2>>"$HOOK_LOG"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [startup.sh] started" >&2
+
 CONFIG_FILE="$HOME/.ai-memory/config.yaml"
 PORT=24636
 if [ -f "$CONFIG_FILE" ]; then

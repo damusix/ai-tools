@@ -2,6 +2,10 @@
 # PreToolUse hook: inject taxonomy context before search_memories calls
 set -euo pipefail
 
+HOOK_LOG="$HOME/.ai-memory/hooks.log"
+exec 2>>"$HOOK_LOG"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [search-context.sh] started" >&2
+
 CONFIG_FILE="$HOME/.ai-memory/config.yaml"
 PORT=24636
 if [ -f "$CONFIG_FILE" ]; then
