@@ -31,6 +31,7 @@ import {
     restoreDefaultDomains,
     restoreDefaultCategories,
     getStats,
+    listTags,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -321,6 +322,27 @@ export function createApp(): Hono {
         } catch {
             return c.json({ memories: [] });
         }
+    });
+
+    // ── HTTP API: Taxonomy summary (domains, categories, top tags) ────
+    app.get('/api/taxonomy-summary', (c) => {
+        const project = c.req.query('project');
+        const domains = listDomains(project).filter(d => d.count > 0);
+        const categories = listCategories(project).filter(cat => cat.count > 0);
+        const tags = listTags(project).slice(0, 20);
+
+        const parts: string[] = [];
+        if (domains.length > 0) {
+            parts.push('Domains: ' + domains.map(d => `${d.name}(${d.count})`).join(', '));
+        }
+        if (categories.length > 0) {
+            parts.push('Categories: ' + categories.map(cat => `${cat.name}(${cat.count})`).join(', '));
+        }
+        if (tags.length > 0) {
+            parts.push('Top tags: ' + tags.map(t => `${t.tag}(${t.count})`).join(', '));
+        }
+
+        return c.json({ summary: parts.join('\n') });
     });
 
     // ── HTTP API: Transfer project memories to a new path ────────────
