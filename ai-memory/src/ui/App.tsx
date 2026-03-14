@@ -1,4 +1,4 @@
-import { createSignal, createResource, createMemo, onCleanup, For, Show, type Component } from 'solid-js';
+import { createSignal, createResource, createMemo, createEffect, onCleanup, For, Show, type Component } from 'solid-js';
 import { ProjectSelector } from './components/ProjectSelector';
 import { MemoryCard } from './components/MemoryCard';
 import { ObservationCard } from './components/ObservationCard';
@@ -79,6 +79,9 @@ const App: Component = () => {
     const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
 
+    const [searchQuery, setSearchQuery] = createSignal('');
+    const [searchResults, setSearchResults] = createSignal<Memory[] | null>(null);
+
     const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>({});
     const [collapsedDomains, setCollapsedDomains] = createSignal<Record<string, boolean>>({});
     const [collapsedCategories, setCollapsedCategories] = createSignal<Record<string, boolean>>({});
@@ -103,6 +106,36 @@ const App: Component = () => {
     };
 
     const refresh = () => setRefreshKey((k) => k + 1);
+
+    const handleSearch = async (query: string) => {
+        if (!query.trim()) {
+            setSearchResults(null);
+            setSearchQuery('');
+            return;
+        }
+        setSearchQuery(query);
+        try {
+            const projectParam = project()
+                ? `&project=${encodeURIComponent(project())}`
+                : '';
+            const data = await api<{ results: Memory[] }>(
+                `/api/search?q=${encodeURIComponent(query)}${projectParam}`
+            );
+            setSearchResults(data.results);
+        } catch {
+            setSearchResults([]);
+        }
+    };
+
+    const clearSearch = () => {
+        setSearchQuery('');
+        setSearchResults(null);
+    };
+
+    createEffect(() => {
+        project(); // track dependency
+        clearSearch();
+    });
 
     const showToast = (msg: string) => {
         setToast(msg);
@@ -482,118 +515,162 @@ const App: Component = () => {
 
                     {/* Memories main panel */}
                     <main class="flex-1 overflow-y-auto p-4">
-                        <Show
-                            when={(memories()?.length ?? 0) > 0}
-                            fallback={<div class="text-neutral-500 text-xs text-center py-8 flex flex-col items-center gap-2"><Icon name="brain" size={24} /><span>No memories yet</span></div>}
-                        >
-                            <For each={groupedMemories()}>
-                                {(projGroup) => (
-                                    <>
-                                        {/* Project box */}
-                                        <div class={`mt-4 first:mt-0 rounded-xl border border-neutral-700/50 bg-neutral-800/20 overflow-hidden ${projGroup.project === '_' ? '' : ''}`}>
-                                            <Show when={projGroup.project !== '_'}>
-                                                <div
-                                                    class="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-neutral-800/60 transition-colors group/proj"
-                                                >
-                                                    <button
-                                                        class="flex items-center gap-2 flex-1 min-w-0"
-                                                        onClick={() => toggleProject(projGroup.project)}
-                                                        title={projectDescMap()[projGroup.project] || projGroup.project}
+                        {/* Search bar */}
+                        <div class="mb-3 relative">
+                            <input
+                                type="text"
+                                placeholder="Search memories..."
+                                class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
+                                value={searchQuery()}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSearch(e.currentTarget.value);
+                                }}
+                            />
+                            <Show when={searchResults() !== null}>
+                                <button
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 text-xs"
+                                    onClick={clearSearch}
+                                    title="Clear search"
+                                >
+                                    <Icon name="x" size={14} />
+                                </button>
+                            </Show>
+                        </div>
+                        <Show when={searchResults() !== null} fallback={
+                            <Show
+                                when={(memories()?.length ?? 0) > 0}
+                                fallback={<div class="text-neutral-500 text-xs text-center py-8 flex flex-col items-center gap-2"><Icon name="brain" size={24} /><span>No memories yet</span></div>}
+                            >
+                                <For each={groupedMemories()}>
+                                    {(projGroup) => (
+                                        <>
+                                            {/* Project box */}
+                                            <div class={`mt-4 first:mt-0 rounded-xl border border-neutral-700/50 bg-neutral-800/20 overflow-hidden ${projGroup.project === '_' ? '' : ''}`}>
+                                                <Show when={projGroup.project !== '_'}>
+                                                    <div
+                                                        class="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-neutral-800/60 transition-colors group/proj"
                                                     >
-                                                        <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
-                                                        <div class="flex flex-col items-start min-w-0">
-                                                            <span class="text-sm font-bold text-neutral-200 truncate max-w-full">{shortPath(projGroup.project)}</span>
-                                                            <Show when={projectDescMap()[projGroup.project]}>
-                                                                <span class="text-[10px] text-neutral-500 leading-tight truncate max-w-full">{projectDescMap()[projGroup.project]}</span>
-                                                            </Show>
-                                                        </div>
-                                                        <span class="text-xs text-neutral-500 shrink-0">
-                                                            ({projGroup.domains.reduce((n, d) => n + d.categories.reduce((c, cat) => c + cat.memories.length, 0), 0)} memories)
-                                                        </span>
-                                                        <Icon name={collapsedProjects()[projGroup.project] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500 shrink-0" />
-                                                    </button>
-                                                    <Show when={projGroup.project !== '_global'}>
                                                         <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const proj = (projects() || []).find((p: Project) => p.path === projGroup.project);
-                                                                if (proj) setDeleteProjectTarget(proj);
-                                                            }}
-                                                            class="p-1 rounded text-neutral-600 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover/proj:opacity-100 transition-opacity shrink-0"
-                                                            title="Delete project"
+                                                            class="flex items-center gap-2 flex-1 min-w-0"
+                                                            onClick={() => toggleProject(projGroup.project)}
+                                                            title={projectDescMap()[projGroup.project] || projGroup.project}
                                                         >
-                                                            <i class="fa-solid fa-trash" style="font-size: 10px"></i>
+                                                            <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
+                                                            <div class="flex flex-col items-start min-w-0">
+                                                                <span class="text-sm font-bold text-neutral-200 truncate max-w-full">{shortPath(projGroup.project)}</span>
+                                                                <Show when={projectDescMap()[projGroup.project]}>
+                                                                    <span class="text-[10px] text-neutral-500 leading-tight truncate max-w-full">{projectDescMap()[projGroup.project]}</span>
+                                                                </Show>
+                                                            </div>
+                                                            <span class="text-xs text-neutral-500 shrink-0">
+                                                                ({projGroup.domains.reduce((n, d) => n + d.categories.reduce((c, cat) => c + cat.memories.length, 0), 0)} memories)
+                                                            </span>
+                                                            <Icon name={collapsedProjects()[projGroup.project] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500 shrink-0" />
                                                         </button>
-                                                    </Show>
-                                                </div>
-                                            </Show>
-                                            <Show when={projGroup.project === '_' || !collapsedProjects()[projGroup.project]}>
-                                                <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} p-3 flex flex-col gap-3`}>
-                                                    <For each={projGroup.domains}>
-                                                        {(domGroup) => {
-                                                            const domKey = `${projGroup.project}:${domGroup.domain}`;
-                                                            return (
-                                                                /* Domain box */
-                                                                <div class="rounded-lg border border-neutral-700/30 bg-neutral-800/30 overflow-hidden">
-                                                                    <button
-                                                                        class="w-full flex items-center justify-between py-2 px-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-800/60 transition-colors"
-                                                                        onClick={() => toggleDomain(domKey)}
-                                                                    >
-                                                                        <span class="capitalize flex items-center gap-1.5">
-                                                                            <i class={`fa-solid ${domainIconMap()[domGroup.domain] || 'fa-folder'}`} style="font-size: 14px"></i>
-                                                                            {domGroup.domain}
-                                                                        </span>
-                                                                        <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
-                                                                    </button>
-                                                                    <Show when={!collapsedDomains()[domKey]}>
-                                                                        <div class="border-t border-neutral-700/30 p-3 flex flex-col gap-3">
-                                                                            <For each={domGroup.categories}>
-                                                                                {(catGroup) => {
-                                                                                    const catKey = `${domKey}:${catGroup.category}`;
-                                                                                    return (
-                                                                                        /* Category box */
-                                                                                        <div class="rounded-lg border border-neutral-800 bg-neutral-900/30 overflow-hidden">
-                                                                                            <button
-                                                                                                class="w-full flex items-center justify-between py-2 px-3 text-xs font-medium text-neutral-400 hover:text-neutral-300 hover:bg-neutral-800/50"
-                                                                                                onClick={() => toggleCategory(catKey)}
-                                                                                            >
-                                                                                                <span class="capitalize flex items-center gap-1.5">
-                                                                                                    <i class={`fa-solid ${categoryIconMap()[catGroup.category] || 'fa-bookmark'}`} style="font-size: 12px"></i>
-                                                                                                    {catGroup.category}
-                                                                                                    <span class="text-neutral-600 font-normal">({catGroup.memories.length})</span>
-                                                                                                </span>
-                                                                                                <Icon name={collapsedCategories()[catKey] ? 'chevron-right' : 'chevron-down'} size={10} class="text-neutral-600" />
-                                                                                            </button>
-                                                                                            <Show when={!collapsedCategories()[catKey]}>
-                                                                                                <div class="flex flex-wrap gap-3 p-3 border-t border-neutral-800">
-                                                                                                    <For each={catGroup.memories}>
-                                                                                                        {(m) => (
-                                                                                                            <MemoryCard
-                                                                                                                memory={m}
-                                                                                                                onDelete={(id) => setDeleteTarget({ type: 'memories', id })}
-                                                                                                                domainIcon={domainIconMap()[m.domain || ''] || 'fa-folder'}
-                                                                                                                categoryIcon={categoryIconMap()[m.category] || 'fa-bookmark'}
-                                                                                                            />
-                                                                                                        )}
-                                                                                                    </For>
-                                                                                                </div>
-                                                                                            </Show>
-                                                                                        </div>
-                                                                                    );
-                                                                                }}
-                                                                            </For>
-                                                                        </div>
-                                                                    </Show>
-                                                                </div>
-                                                            );
-                                                        }}
-                                                    </For>
-                                                </div>
-                                            </Show>
-                                        </div>
-                                    </>
-                                )}
-                            </For>
+                                                        <Show when={projGroup.project !== '_global'}>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const proj = (projects() || []).find((p: Project) => p.path === projGroup.project);
+                                                                    if (proj) setDeleteProjectTarget(proj);
+                                                                }}
+                                                                class="p-1 rounded text-neutral-600 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover/proj:opacity-100 transition-opacity shrink-0"
+                                                                title="Delete project"
+                                                            >
+                                                                <i class="fa-solid fa-trash" style="font-size: 10px"></i>
+                                                            </button>
+                                                        </Show>
+                                                    </div>
+                                                </Show>
+                                                <Show when={projGroup.project === '_' || !collapsedProjects()[projGroup.project]}>
+                                                    <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} p-3 flex flex-col gap-3`}>
+                                                        <For each={projGroup.domains}>
+                                                            {(domGroup) => {
+                                                                const domKey = `${projGroup.project}:${domGroup.domain}`;
+                                                                return (
+                                                                    /* Domain box */
+                                                                    <div class="rounded-lg border border-neutral-700/30 bg-neutral-800/30 overflow-hidden">
+                                                                        <button
+                                                                            class="w-full flex items-center justify-between py-2 px-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-800/60 transition-colors"
+                                                                            onClick={() => toggleDomain(domKey)}
+                                                                        >
+                                                                            <span class="capitalize flex items-center gap-1.5">
+                                                                                <i class={`fa-solid ${domainIconMap()[domGroup.domain] || 'fa-folder'}`} style="font-size: 14px"></i>
+                                                                                {domGroup.domain}
+                                                                            </span>
+                                                                            <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
+                                                                        </button>
+                                                                        <Show when={!collapsedDomains()[domKey]}>
+                                                                            <div class="border-t border-neutral-700/30 p-3 flex flex-col gap-3">
+                                                                                <For each={domGroup.categories}>
+                                                                                    {(catGroup) => {
+                                                                                        const catKey = `${domKey}:${catGroup.category}`;
+                                                                                        return (
+                                                                                            /* Category box */
+                                                                                            <div class="rounded-lg border border-neutral-800 bg-neutral-900/30 overflow-hidden">
+                                                                                                <button
+                                                                                                    class="w-full flex items-center justify-between py-2 px-3 text-xs font-medium text-neutral-400 hover:text-neutral-300 hover:bg-neutral-800/50"
+                                                                                                    onClick={() => toggleCategory(catKey)}
+                                                                                                >
+                                                                                                    <span class="capitalize flex items-center gap-1.5">
+                                                                                                        <i class={`fa-solid ${categoryIconMap()[catGroup.category] || 'fa-bookmark'}`} style="font-size: 12px"></i>
+                                                                                                        {catGroup.category}
+                                                                                                        <span class="text-neutral-600 font-normal">({catGroup.memories.length})</span>
+                                                                                                    </span>
+                                                                                                    <Icon name={collapsedCategories()[catKey] ? 'chevron-right' : 'chevron-down'} size={10} class="text-neutral-600" />
+                                                                                                </button>
+                                                                                                <Show when={!collapsedCategories()[catKey]}>
+                                                                                                    <div class="flex flex-wrap gap-3 p-3 border-t border-neutral-800">
+                                                                                                        <For each={catGroup.memories}>
+                                                                                                            {(m) => (
+                                                                                                                <MemoryCard
+                                                                                                                    memory={m}
+                                                                                                                    onDelete={(id) => setDeleteTarget({ type: 'memories', id })}
+                                                                                                                    domainIcon={domainIconMap()[m.domain || ''] || 'fa-folder'}
+                                                                                                                    categoryIcon={categoryIconMap()[m.category] || 'fa-bookmark'}
+                                                                                                                />
+                                                                                                            )}
+                                                                                                        </For>
+                                                                                                    </div>
+                                                                                                </Show>
+                                                                                            </div>
+                                                                                        );
+                                                                                    }}
+                                                                                </For>
+                                                                            </div>
+                                                                        </Show>
+                                                                    </div>
+                                                                );
+                                                            }}
+                                                        </For>
+                                                    </div>
+                                                </Show>
+                                            </div>
+                                        </>
+                                    )}
+                                </For>
+                            </Show>
+                        }>
+                            {/* Search results flat view */}
+                            <div class="text-xs text-neutral-500 mb-2">
+                                {searchResults()!.length} result{searchResults()!.length !== 1 ? 's' : ''} for '{searchQuery()}'
+                            </div>
+                            <Show when={searchResults()!.length > 0} fallback={
+                                <div class="text-neutral-500 text-xs text-center py-8">No matches found</div>
+                            }>
+                                <div class="flex flex-wrap gap-3">
+                                    <For each={searchResults()!}>
+                                        {(m) => (
+                                            <MemoryCard
+                                                memory={m}
+                                                onDelete={(id) => setDeleteTarget({ type: 'memories', id })}
+                                                domainIcon={domainIconMap()[m.domain || ''] || 'fa-folder'}
+                                                categoryIcon={categoryIconMap()[m.category] || 'fa-bookmark'}
+                                            />
+                                        )}
+                                    </For>
+                                </div>
+                            </Show>
                         </Show>
                     </main>
                 </div>
