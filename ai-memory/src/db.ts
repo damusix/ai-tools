@@ -135,6 +135,22 @@ function initSchema(db: Database.Database): void {
             INSERT INTO memories_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
         END;
 
+        -- Trigram FTS for substring matching (fallback search)
+        CREATE VIRTUAL TABLE IF NOT EXISTS memories_trigram
+            USING fts5(content, tags, tokenize="trigram");
+
+        -- Trigram sync triggers
+        CREATE TRIGGER IF NOT EXISTS memories_trigram_ai AFTER INSERT ON memories BEGIN
+            INSERT INTO memories_trigram(rowid, content, tags) VALUES (new.id, new.content, new.tags);
+        END;
+        CREATE TRIGGER IF NOT EXISTS memories_trigram_ad AFTER DELETE ON memories BEGIN
+            DELETE FROM memories_trigram WHERE rowid = old.id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS memories_trigram_au AFTER UPDATE ON memories BEGIN
+            DELETE FROM memories_trigram WHERE rowid = old.id;
+            INSERT INTO memories_trigram(rowid, content, tags) VALUES (new.id, new.content, new.tags);
+        END;
+
         CREATE TABLE IF NOT EXISTS observation_queue (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             project_id INTEGER NOT NULL REFERENCES projects(id),
@@ -170,6 +186,18 @@ function initSchema(db: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_obs_queue_status ON observation_queue(status);
         CREATE INDEX IF NOT EXISTS idx_mem_queue_status ON memory_queue(status);
     `);
+
+    // Backfill trigram index from existing memories
+    const trigramCount = (db.prepare('SELECT COUNT(*) as c FROM memories_trigram').get() as any).c;
+    const memoryCount = (db.prepare('SELECT COUNT(*) as c FROM memories').get() as any).c;
+    if (trigramCount < memoryCount) {
+        db.transaction(() => {
+            db.exec('DELETE FROM memories_trigram');
+            db.exec(
+                'INSERT INTO memories_trigram(rowid, content, tags) SELECT id, content, tags FROM memories',
+            );
+        })();
+    }
 
     // Seed default domains
     const insertDomainStmt = db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)');
