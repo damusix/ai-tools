@@ -21,6 +21,7 @@ import {
     updateCategory,
     deleteCategory,
     searchMemories,
+    searchMemoriesFuzzy,
     transferProject,
     deleteProject,
     updateProjectMeta,
@@ -321,6 +322,55 @@ export function createApp(): Hono {
             return c.json({ memories: results });
         } catch {
             return c.json({ memories: [] });
+        }
+    });
+
+    // ── HTTP API: Search (word-based FTS + trigram fallback) ──────────
+    app.get('/api/search', (c) => {
+        try {
+            const q = c.req.query('q') || '';
+            if (!q.trim()) return c.json({ results: [] });
+
+            const project = c.req.query('project');
+            const domain = c.req.query('domain');
+            const category = c.req.query('category');
+            const tag = c.req.query('tag');
+            const rawLimit = Number(c.req.query('limit') || '20');
+            const limit = rawLimit < 0 ? 20 : rawLimit;
+
+            // Extract and filter words (same logic as /api/recall)
+            const words = q
+                .toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter((w) => w.length >= 2 && !STOP_WORDS[w]);
+
+            const unique = [...new Set(words)].slice(0, 5);
+            if (unique.length === 0) return c.json({ results: [] });
+
+            // 1. Word-based FTS with prefix wildcards (precision)
+            const wordQuery = unique.map(w => w + '*').join(' OR ');
+            const wordResults = searchMemories(wordQuery, project, tag, category, limit, domain);
+
+            // 2. Trigram fallback for remaining slots (substring matching)
+            const seen = new Set<number>(wordResults.map((r: any) => r.id));
+            let combined = [...wordResults];
+
+            if (limit === 0 || combined.length < limit) {
+                const trigramQuery = unique.join(' OR ');
+                const remaining = limit === 0 ? 0 : limit - combined.length;
+                const trigramResults = searchMemoriesFuzzy(trigramQuery, project, tag, category, remaining, domain);
+                for (const r of trigramResults) {
+                    if (!seen.has(r.id)) {
+                        seen.add(r.id);
+                        combined.push(r);
+                    }
+                }
+            }
+
+            return c.json({ results: combined });
+        } catch {
+            return c.json({ results: [] });
         }
     });
 

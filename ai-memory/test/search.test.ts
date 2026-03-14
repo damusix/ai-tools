@@ -190,6 +190,64 @@ describe('POST /api/recall prefix wildcards', () => {
     });
 });
 
+describe('GET /api/search', () => {
+    it('returns word-based results for exact matches', async () => {
+        const proj = getOrCreateProject('/test/search');
+        insertMemory(proj.id, 'authentication flow using JWT', 'auth', 'solution', 4, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?q=authentication&project=/test/search');
+        expect(res.status).toBe(200);
+        const json = await res.json() as any;
+        expect(json.results.length).toBeGreaterThan(0);
+        expect(json.results[0].content).toContain('authentication');
+    });
+
+    it('returns trigram fallback for substring queries', async () => {
+        const proj = getOrCreateProject('/test/search2');
+        insertMemory(proj.id, 'websocket connection handling', 'ws', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        // "socket" won't match word-based (not a prefix of "websocket")
+        // but trigram should catch it
+        const res = await app.request('/api/search?q=socket&project=/test/search2');
+        const json = await res.json() as any;
+        expect(json.results.length).toBeGreaterThan(0);
+        expect(json.results[0].content).toContain('websocket');
+    });
+
+    it('deduplicates results from word and trigram queries', async () => {
+        const proj = getOrCreateProject('/test/search3');
+        insertMemory(proj.id, 'authentication system design', 'auth', 'solution', 4, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?q=authentication&project=/test/search3');
+        const json = await res.json() as any;
+        const ids = json.results.map((r: any) => r.id);
+        const uniqueIds = new Set(ids);
+        expect(ids.length).toBe(uniqueIds.size);
+    });
+
+    it('returns empty results for missing q parameter', async () => {
+        const app = makeApp();
+        const res = await app.request('/api/search');
+        const json = await res.json() as any;
+        expect(json.results).toHaveLength(0);
+    });
+
+    it('respects domain filter', async () => {
+        const proj = getOrCreateProject('/test/search4');
+        insertMemory(proj.id, 'frontend authentication', 'auth', 'fact', 3, '', 'frontend');
+        insertMemory(proj.id, 'backend authentication', 'auth', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?q=authentication&project=/test/search4&domain=frontend');
+        const json = await res.json() as any;
+        expect(json.results).toHaveLength(1);
+        expect(json.results[0].domain).toBe('frontend');
+    });
+});
+
 describe('GET /api/taxonomy-summary', () => {
     it('returns JSON with summary field', async () => {
         const proj = getOrCreateProject('/test/taxonomy');
