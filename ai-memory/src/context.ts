@@ -1,4 +1,4 @@
-import { listMemories, listTags, getOrCreateProject } from './db.js';
+import { listMemories, listTags, getOrCreateProject, listDomainsRaw, listCategoriesRaw } from './db.js';
 import { log } from './logger.js';
 import { getConfig } from './config.js';
 
@@ -96,6 +96,19 @@ export function buildStartupContext(projectPath: string): string {
 
     if (selectedTags.length > 0) {
         lines.push(`\n## Tags (name followed by memory count)\n${selectedTags.join(', ')}`);
+    }
+
+    // Inject full taxonomy for LLM search precision
+    const allDomains = listDomainsRaw();
+    if (allDomains.length > 0) {
+        lines.push(`\n## Available Domains\n${allDomains.map(d => d.name).join(', ')}`);
+    }
+
+    const allCategories = listCategoriesRaw();
+    if (allCategories.length > 0) {
+        lines.push(
+            `\n## Available Categories\n${allCategories.map(c => `${c.name}: ${c.description}`).join('\n')}`,
+        );
     }
 
     // Encourage domain-specific search when not all memories are shown

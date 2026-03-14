@@ -14,6 +14,7 @@ import {
     insertObservation,
 } from '../src/db.js';
 import { createApp } from '../src/app.js';
+import { buildStartupContext } from '../src/context.js';
 
 function makeApp() {
     return createApp();
@@ -270,5 +271,21 @@ describe('GET /api/taxonomy-summary', () => {
         const res = await app.request('/api/taxonomy-summary?project=/test/taxonomy2');
         const json = await res.json() as any;
         expect(json.summary).toContain('backend');
+    });
+});
+
+describe('Startup context injection', () => {
+    it('includes Available Domains section', () => {
+        getOrCreateProject('/test/context');
+        const ctx = buildStartupContext('/test/context');
+        expect(ctx).toContain('## Available Domains');
+        expect(ctx).toContain('general');
+    });
+
+    it('includes Available Categories section', () => {
+        getOrCreateProject('/test/context');
+        const ctx = buildStartupContext('/test/context');
+        expect(ctx).toContain('## Available Categories');
+        expect(ctx).toContain('fact');
     });
 });
