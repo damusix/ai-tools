@@ -77,3 +77,17 @@ export function bumpVersion(current: string, bump: BumpType): string {
     }
 }
 
+export function checkCleanWorkingTree(repoRoot: string): boolean {
+    const result = Bun.spawnSync(["git", "status", "--porcelain"], { cwd: repoRoot });
+    return result.stdout.toString().trim() === "";
+}
+
+export function tagExists(repoRoot: string, tagName: string): boolean {
+    const result = Bun.spawnSync(["git", "tag", "--list", tagName], { cwd: repoRoot });
+    return result.stdout.toString().trim() !== "";
+}
+
+export function getRepoRoot(): string {
+    const result = Bun.spawnSync(["git", "rev-parse", "--show-toplevel"]);
+    return result.stdout.toString().trim();
+}
