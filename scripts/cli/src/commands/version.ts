@@ -106,6 +106,129 @@ function runFlagMode(positionalArgs: string[]) {
 }
 
 async function runInteractive() {
-    // Placeholder for Task 12
-    console.log("Interactive mode not yet implemented.");
+    const repoRoot = getRepoRoot();
+
+    intro("Version Bump");
+
+    if (!checkCleanWorkingTree(repoRoot)) {
+        cancel("Working tree is dirty. Commit or stash changes first.");
+        process.exit(1);
+    }
+
+    const plugins = discoverPlugins(repoRoot);
+
+    // 1. Select plugins
+    const selectedPlugins = await multiselect({
+        message: "Which plugins to bump?",
+        options: plugins.map((p) => ({
+            value: p.name,
+            label: p.name,
+            hint: `v${p.version}`,
+        })),
+    });
+
+    if (isCancel(selectedPlugins)) {
+        cancel("Cancelled.");
+        process.exit(0);
+    }
+
+    // 2. Select bump type for each
+    const bumps: { pluginName: string; bump: BumpType }[] = [];
+
+    for (const pluginName of selectedPlugins) {
+        const plugin = plugins.find((p) => p.name === pluginName)!;
+
+        const bump = await select({
+            message: `Bump type for ${pluginName} (v${plugin.version})?`,
+            options: [
+                { value: "patch", label: "patch", hint: `→ ${bumpVersion(plugin.version, "patch")}` },
+                { value: "minor", label: "minor", hint: `→ ${bumpVersion(plugin.version, "minor")}` },
+                { value: "major", label: "major", hint: `→ ${bumpVersion(plugin.version, "major")}` },
+            ],
+        });
+
+        if (isCancel(bump)) {
+            cancel("Cancelled.");
+            process.exit(0);
+        }
+
+        bumps.push({ pluginName, bump: bump as BumpType });
+    }
+
+    // 3. Confirm
+    const summary = bumps
+        .map((b) => {
+            const p = plugins.find((p) => p.name === b.pluginName)!;
+            return `  ${b.pluginName}: ${p.version} → ${bumpVersion(p.version, b.bump)}`;
+        })
+        .join("\n");
+
+    log.message(summary);
+
+    const ok = await confirm({ message: "Proceed with these bumps?" });
+
+    if (isCancel(ok) || !ok) {
+        cancel("Cancelled.");
+        process.exit(0);
+    }
+
+    // 4. Execute
+    const allFilesToStage: string[] = [];
+    const allTags: string[] = [];
+
+    await tasks(
+        bumps.map((b) => ({
+            title: `Bumping ${b.pluginName}`,
+            task: async () => {
+                const plugin = plugins.find((p) => p.name === b.pluginName)!;
+                const newVersion = bumpVersion(plugin.version, b.bump);
+                const tag = `${plugin.name}@${newVersion}`;
+
+                if (tagExists(repoRoot, tag)) {
+                    throw new Error(`Tag ${tag} already exists`);
+                }
+
+                // Write version
+                writeVersion(plugin.versionFile, newVersion);
+                allFilesToStage.push(plugin.versionFile);
+
+                // Sync
+                const synced = syncVersions(repoRoot, plugin, newVersion);
+                allFilesToStage.push(...synced);
+
+                // Changelog
+                const pluginDir = resolve(repoRoot, plugin.source);
+                const commits = getGitLog(repoRoot, pluginDir);
+                const tags = getVersionTags(repoRoot, plugin.name);
+                const groups = groupCommitsByVersion(commits, tags, newVersion);
+                const changelog = renderChangelog(groups);
+                const changelogPath = join(pluginDir, "CHANGELOG.md");
+                writeFileSync(changelogPath, changelog);
+                allFilesToStage.push(changelogPath);
+
+                allTags.push(tag);
+
+                return `${plugin.name} → ${newVersion}`;
+            },
+        }))
+    );
+
+    // Single commit for all plugins
+    try {
+        const commitMsg = `release: ${allTags.join(", ")}`;
+        Bun.spawnSync(["git", "add", ...allFilesToStage], { cwd: repoRoot });
+        const commitResult = Bun.spawnSync(["git", "commit", "-m", commitMsg], { cwd: repoRoot });
+        if (commitResult.exitCode !== 0) {
+            throw new Error(`git commit failed: ${commitResult.stderr.toString()}`);
+        }
+
+        for (const tag of allTags) {
+            Bun.spawnSync(["git", "tag", tag], { cwd: repoRoot });
+        }
+    } catch (err) {
+        console.error(`System error: ${(err as Error).message}`);
+        process.exit(2);
+    }
+
+    outro(`Released: ${allTags.join(", ")}`);
 }
