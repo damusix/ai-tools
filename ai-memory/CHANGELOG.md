@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+
+### Features
+
+- summary-based context injection, memory detail modal, and merge UX improvements
+- URL-based routing, flaky test fix, and delete confirmation UX
+- restructure dashboard header with search filters, menu dropdown, and branding
+- add changelog command and update docs
+
 ## 1.1.1
 
 ### Features
