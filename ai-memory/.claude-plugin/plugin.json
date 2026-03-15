@@ -1,6 +1,6 @@
 {
     "name": "ai-memory",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "Persistent memory across Claude Code sessions",
     "author": {
         "name": "alonso"
