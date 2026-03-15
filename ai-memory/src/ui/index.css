@@ -75,3 +75,27 @@
 .help-prose a { color: #d77757; text-decoration: underline; text-underline-offset: 2px; }
 .help-prose code { background: rgba(255,255,255,0.06); padding: 0.15em 0.35em; border-radius: 3px; font-size: 0.85em; }
 .help-prose hr { border-color: #333; margin: 1rem 0; }
+
+/* Keyboard shortcut hints */
+.kbd {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 10px;
+    line-height: 1;
+    color: #737373;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 2px 5px;
+    pointer-events: none;
+}
+.kbd-input {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: opacity 0.15s;
+}
+input:focus ~ .kbd-input { opacity: 0; }

@@ -35,6 +35,8 @@ import {
     listTags,
     getMemoryById,
     updateMemory,
+    deleteEmptyProjects,
+    batchDeleteProjects,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -109,6 +111,24 @@ export function createApp(): Hono {
     app.get('/api/stats', (c) => {
         const project = c.req.query('project');
         return c.json(getStats(project));
+    });
+
+    app.delete('/api/projects/batch', async (c) => {
+        const { projectIds } = await c.req.json();
+        if (!Array.isArray(projectIds) || projectIds.length === 0) {
+            return c.json({ error: 'projectIds[] required' }, 400);
+        }
+        const result = batchDeleteProjects(projectIds);
+        log('api', `Batch deleted ${result.deleted} projects (${result.totalMemories} memories, ${result.totalObservations} observations)`);
+        broadcast('counts:updated', {});
+        return c.json(result);
+    });
+
+    app.post('/api/projects/cleanup-empty', (c) => {
+        const deleted = deleteEmptyProjects();
+        log('api', `Cleaned up ${deleted} empty projects`);
+        if (deleted > 0) broadcast('counts:updated', {});
+        return c.json({ deleted });
     });
 
     app.delete('/api/projects/:id', (c) => {

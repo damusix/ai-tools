@@ -92,11 +92,11 @@ const TerminalLogs: Component<{ open: boolean; onClose: () => void }> = (props) 
         setConfirmTruncate(false);
     };
 
-    // Open: fetch initial logs
+    // Open: fetch initial logs + start streaming by default
     createEffect(() => {
         if (props.open) {
             setOffset(0);
-            fetchLogs(0, 'replace');
+            fetchLogs(0, 'replace').then(() => startStreaming());
         } else {
             stopStreaming();
         }

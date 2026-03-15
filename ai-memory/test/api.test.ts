@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { initDb, closeDb, getOrCreateProject, insertObservation, insertMemory } from '../src/db.js';
+import { initDb, closeDb, getOrCreateProject, getDb, insertObservation, insertMemory } from '../src/db.js';
 import { createApp } from '../src/app.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -207,5 +207,59 @@ describe('API', () => {
         expect(res.status).toBe(200);
         const json = await res.json();
         expect(json.memories).toBe(1);
+    });
+
+    it('DELETE /api/projects/batch deletes multiple projects', async () => {
+        const app = makeApp();
+        const p1 = getOrCreateProject('/batch/a');
+        const p2 = getOrCreateProject('/batch/b');
+        insertMemory(p1.id, 'mem', 'tag', 'fact', 3, '');
+        insertObservation(p2.id, 'obs', 'src');
+
+        const res = await req(app, 'DELETE', '/api/projects/batch', { projectIds: [p1.id, p2.id] });
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.deleted).toBe(2);
+        expect(json.totalMemories).toBe(1);
+        expect(json.totalObservations).toBe(1);
+    });
+
+    it('DELETE /api/projects/batch returns 400 with no projectIds', async () => {
+        const app = makeApp();
+        const res = await req(app, 'DELETE', '/api/projects/batch', {});
+        expect(res.status).toBe(400);
+    });
+
+    it('POST /api/projects/cleanup-empty removes old empty projects', async () => {
+        const app = makeApp();
+        const db = getDb();
+
+        // Create an empty project and backdate it
+        const empty = getOrCreateProject('/cleanup/empty');
+        db.prepare("UPDATE projects SET created_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 hours') WHERE id = ?").run(empty.id);
+
+        const res = await req(app, 'POST', '/api/projects/cleanup-empty');
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.deleted).toBe(1);
+    });
+
+    it('GET /api/projects excludes empty projects but includes _global', async () => {
+        const app = makeApp();
+
+        // Create an empty project (no memories or observations)
+        getOrCreateProject('/empty/project');
+
+        // Create a project with content
+        const withMem = getOrCreateProject('/with/memories');
+        insertMemory(withMem.id, 'test', 'tag', 'fact', 3, '');
+
+        const res = await app.request('/api/projects');
+        const json: any[] = await res.json();
+        const paths = json.map((p: any) => p.path);
+
+        expect(paths).toContain('_global');
+        expect(paths).toContain('/with/memories');
+        expect(paths).not.toContain('/empty/project');
     });
 });

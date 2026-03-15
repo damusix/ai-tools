@@ -24,6 +24,7 @@ import {
     deleteOverSkippedObservations,
     getProjectsWithStaleObservations,
     updateProjectMeta,
+    deleteEmptyProjects,
 } from './db.js';
 import { broadcast } from './sse.js';
 import { log, error as logError } from './logger.js';
@@ -171,6 +172,11 @@ export function startWorker(): void {
             const purged = purgeStaleObservations();
             if (purged > 0) {
                 log('worker', `Purged ${purged} stale processed observations`);
+                broadcast('counts:updated', {});
+            }
+            const emptied = deleteEmptyProjects();
+            if (emptied > 0) {
+                log('worker', `Cleaned up ${emptied} empty projects`);
                 broadcast('counts:updated', {});
             }
             pollCount++;

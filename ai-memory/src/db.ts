@@ -285,6 +285,9 @@ export function listProjects(): any[] {
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
             (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
         FROM projects p
+        WHERE p.path = '_global'
+           OR EXISTS (SELECT 1 FROM memories WHERE project_id = p.id)
+           OR EXISTS (SELECT 1 FROM observations WHERE project_id = p.id)
         ORDER BY p.name
     `,
         )
@@ -865,6 +868,63 @@ export function getProjectsWithStaleObservations(timeoutMs: number): number[] {
           )
     `).all() as { project_id: number }[];
     return rows.map(r => r.project_id);
+}
+
+export function deleteEmptyProjects(minAgeHours = 3): number {
+    const db = getDb();
+    const doDelete = db.transaction(() => {
+        const candidates = db.prepare(`
+            SELECT id FROM projects
+            WHERE path != '_global'
+              AND id NOT IN (SELECT DISTINCT project_id FROM memories)
+              AND id NOT IN (SELECT DISTINCT project_id FROM observations)
+              AND created_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' hours')
+        `).all(minAgeHours) as { id: number }[];
+
+        if (candidates.length === 0) return 0;
+
+        for (const { id } of candidates) {
+            db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+        }
+
+        return candidates.length;
+    });
+    return doDelete();
+}
+
+export function batchDeleteProjects(ids: number[]): { totalMemories: number; totalObservations: number; deleted: number } {
+    if (ids.length === 0) return { totalMemories: 0, totalObservations: 0, deleted: 0 };
+    const db = getDb();
+
+    const doDelete = db.transaction(() => {
+        let totalMemories = 0;
+        let totalObservations = 0;
+        let deleted = 0;
+
+        for (const id of ids) {
+            const proj = db.prepare('SELECT path FROM projects WHERE id = ?').get(id) as any;
+            if (!proj || proj.path === '_global') continue;
+
+            const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(id) as any).c;
+            const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(id) as any).c;
+
+            db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM memories WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM observations WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+
+            totalMemories += memCount;
+            totalObservations += obsCount;
+            deleted++;
+        }
+
+        return { totalMemories, totalObservations, deleted };
+    });
+
+    return doDelete();
 }
 
 export function transferProject(fromPath: string, toPath: string): { memories: number; observations: number } {

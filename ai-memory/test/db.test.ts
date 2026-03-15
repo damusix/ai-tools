@@ -41,6 +41,8 @@ import {
     getProjectSummaryState,
     updateProjectSummary,
     getMemoriesForHashing,
+    deleteEmptyProjects,
+    batchDeleteProjects,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -79,6 +81,84 @@ describe('projects', () => {
         const row = db.prepare("SELECT id, path, name FROM projects WHERE path = '_global'").get() as any;
         expect(row).toBeTruthy();
         expect(row.name).toBe('global');
+    });
+
+    it('listProjects excludes empty projects but always includes _global', () => {
+        // _global starts empty but should always be included
+        const projects = listProjects();
+        expect(projects.some((p: any) => p.path === '_global')).toBe(true);
+
+        // Create an empty project — should NOT appear
+        getOrCreateProject('/empty/project');
+        const projects2 = listProjects();
+        expect(projects2.some((p: any) => p.path === '/empty/project')).toBe(false);
+
+        // Create a project with a memory — should appear
+        const withMem = getOrCreateProject('/has/memories');
+        insertMemory(withMem.id, 'test', 'tag', 'fact', 3, '');
+        const projects3 = listProjects();
+        expect(projects3.some((p: any) => p.path === '/has/memories')).toBe(true);
+
+        // Create a project with only observations — should appear
+        const withObs = getOrCreateProject('/has/observations');
+        insertObservation(withObs.id, 'test obs', 'src');
+        const projects4 = listProjects();
+        expect(projects4.some((p: any) => p.path === '/has/observations')).toBe(true);
+    });
+
+    it('deleteEmptyProjects removes old empty projects but keeps _global and non-empty', () => {
+        const db = getDb();
+
+        // Create a project with memories — should survive
+        const withMem = getOrCreateProject('/has/stuff');
+        insertMemory(withMem.id, 'important', 'tag', 'fact', 3, '');
+
+        // Create an empty project and backdate its created_at
+        const empty = getOrCreateProject('/empty/old');
+        db.prepare("UPDATE projects SET created_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 hours') WHERE id = ?").run(empty.id);
+
+        // Create a recent empty project (should NOT be deleted — too new)
+        getOrCreateProject('/empty/new');
+
+        const deleted = deleteEmptyProjects();
+        expect(deleted).toBe(1);
+
+        // Verify the right project was deleted
+        const remaining = db.prepare('SELECT path FROM projects').all() as any[];
+        const paths = remaining.map((r: any) => r.path);
+        expect(paths).toContain('_global');
+        expect(paths).toContain('/has/stuff');
+        expect(paths).toContain('/empty/new');
+        expect(paths).not.toContain('/empty/old');
+    });
+
+    it('batchDeleteProjects deletes multiple projects and cascades', () => {
+        const p1 = getOrCreateProject('/batch/a');
+        const p2 = getOrCreateProject('/batch/b');
+        insertMemory(p1.id, 'mem1', 'tag', 'fact', 3, '');
+        insertMemory(p1.id, 'mem2', 'tag', 'fact', 3, '');
+        insertObservation(p2.id, 'obs1', 'src');
+
+        const result = batchDeleteProjects([p1.id, p2.id]);
+        expect(result.deleted).toBe(2);
+        expect(result.totalMemories).toBe(2);
+        expect(result.totalObservations).toBe(1);
+
+        // Verify they're gone
+        const db = getDb();
+        const remaining = db.prepare('SELECT path FROM projects WHERE path IN (?, ?)').all('/batch/a', '/batch/b');
+        expect(remaining.length).toBe(0);
+    });
+
+    it('batchDeleteProjects skips _global', () => {
+        const db = getDb();
+        const globalId = (db.prepare("SELECT id FROM projects WHERE path = '_global'").get() as any).id;
+        const result = batchDeleteProjects([globalId]);
+        expect(result.deleted).toBe(0);
+
+        // _global still exists
+        const row = db.prepare("SELECT id FROM projects WHERE path = '_global'").get();
+        expect(row).toBeTruthy();
     });
 });
 
@@ -412,6 +492,8 @@ describe('memory reason', () => {
 describe('project enrichment', () => {
     it('updateProjectMeta sets icon and description', () => {
         const proj = getOrCreateProject('/test/enrich');
+        // Add a memory so the project appears in listProjects (empty projects are filtered)
+        insertMemory(proj.id, 'placeholder', '', 'fact', 3, '');
         updateProjectMeta(proj.id, 'fa-rocket', 'A rocket science project');
         const all = listProjects();
         const p = all.find((pr: any) => pr.path === '/test/enrich');

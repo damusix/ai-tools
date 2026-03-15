@@ -9,6 +9,7 @@ export const ProjectSelector: Component<{
     onChange: (path: string) => void;
     onDeleteProject?: () => void;
     stats?: { memories: number; observations: number };
+    onInputMount?: (el: HTMLInputElement) => void;
 }> = (props) => {
     const [query, setQuery] = createSignal('');
     const [open, setOpen] = createSignal(false);
@@ -105,9 +106,9 @@ export const ProjectSelector: Component<{
             <div class="relative">
                 <i class="fa-solid fa-folder-open absolute left-2.5 top-1/2 -translate-y-1/2 text-[#d77757]" style="font-size: 11px"></i>
                 <input
-                    ref={inputRef}
+                    ref={(el) => { inputRef = el; props.onInputMount?.(el); }}
                     type="text"
-                    class="w-full bg-neutral-900 border border-neutral-800 rounded px-3 py-1.5 pl-7 text-sm text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-neutral-600"
+                    class="w-full bg-neutral-900 border border-neutral-800 rounded px-3 py-1.5 pl-7 pr-16 text-sm text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-neutral-600"
                     placeholder={displayName()}
                     value={open() ? query() : ''}
                     onFocus={() => {
@@ -117,6 +118,7 @@ export const ProjectSelector: Component<{
                     onInput={(e) => setQuery(e.currentTarget.value)}
                     onKeyDown={handleKeyDown}
                 />
+                <span class="kbd kbd-input">&#8984;&#8679;P</span>
             </div>
 
             {/* Stats line */}

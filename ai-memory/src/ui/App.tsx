@@ -90,6 +90,8 @@ const App: Component = () => {
     const [stopping, setStopping] = createSignal(false);
     const [menuOpen, setMenuOpen] = createSignal(false);
     let menuRef!: HTMLDivElement;
+    let searchInputRef: HTMLInputElement | undefined;
+    let projectInputRef: HTMLInputElement | undefined;
     const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
     const [memoryDetailOpen, setMemoryDetailOpen] = createSignal(false);
     const [memoryDetail, setMemoryDetail] = createSignal<Memory | null>(null);
@@ -150,6 +152,36 @@ const App: Component = () => {
     syncFromUrl();
     window.addEventListener('popstate', () => { modalPushed = false; syncFromUrl(); });
     onCleanup(() => window.removeEventListener('popstate', syncFromUrl));
+
+    // ── Keyboard shortcuts (VS Code style) ────────────────────────────
+    const handleGlobalKeydown = (e: KeyboardEvent) => {
+        // Ctrl+, → Settings
+        if (e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === ',') {
+            e.preventDefault();
+            settingsOpen() ? closeSettings() : openSettings();
+            return;
+        }
+        // Cmd+P → Search (focus search bar)
+        if (e.metaKey && !e.shiftKey && e.key === 'p') {
+            e.preventDefault();
+            searchInputRef?.focus();
+            return;
+        }
+        // Cmd+Shift+P → Projects (focus project selector)
+        if (e.metaKey && e.shiftKey && e.key === 'p') {
+            e.preventDefault();
+            projectInputRef?.focus();
+            return;
+        }
+        // Cmd+J → Logs
+        if (e.metaKey && !e.shiftKey && e.key === 'j') {
+            e.preventDefault();
+            logsOpen() ? closeLogs() : openLogs();
+            return;
+        }
+    };
+    document.addEventListener('keydown', handleGlobalKeydown);
+    onCleanup(() => document.removeEventListener('keydown', handleGlobalKeydown));
 
     const openSettings = (tab: 'config' | 'domains' | 'categories' = 'config') => {
         setSettingsTab(tab);
@@ -277,6 +309,29 @@ const App: Component = () => {
         } finally {
             setCleaningUp(false);
         }
+    };
+
+    const handleCleanupEmpty = async () => {
+        try {
+            const res = await api<{ deleted: number }>('/api/projects/cleanup-empty', { method: 'POST' });
+            showToast(res.deleted > 0 ? `Cleaned up ${res.deleted} empty project(s)` : 'No empty projects to clean up');
+            refresh();
+        } catch {
+            showToast('Cleanup failed');
+        }
+    };
+
+    const handleBatchDelete = async (projectIds: number[]) => {
+        const res = await fetch('/api/projects/batch', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectIds }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Batch delete failed');
+        showToast(`Deleted ${data.deleted} project(s) (${data.totalMemories} memories, ${data.totalObservations} observations)`);
+        selectProject('');
+        refresh();
     };
 
     const handleRestart = async () => {
@@ -579,6 +634,7 @@ const App: Component = () => {
                                     >
                                         <Icon name="gear" size={13} />
                                         Settings
+                                        <span class="kbd ml-auto">&#8963;,</span>
                                     </button>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
@@ -586,6 +642,7 @@ const App: Component = () => {
                                     >
                                         <Icon name="terminal" size={13} />
                                         Logs
+                                        <span class="kbd ml-auto">&#8984;J</span>
                                     </button>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
@@ -601,6 +658,13 @@ const App: Component = () => {
                                     >
                                         <Icon name="broom" size={13} />
                                         {cleaningUp() ? 'Cleaning...' : 'Clean up'}
+                                    </button>
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
+                                        onClick={() => { handleCleanupEmpty(); setMenuOpen(false); }}
+                                    >
+                                        <i class="fa-solid fa-folder-minus" style="font-size: 13px"></i>
+                                        Purge empty projects
                                     </button>
                                     <div class="border-t border-neutral-700/50" />
                                     <button
@@ -637,6 +701,7 @@ const App: Component = () => {
                                 if (proj) setDeleteProjectTarget(proj);
                             }}
                             stats={stats()}
+                            onInputMount={(el) => { projectInputRef = el; }}
                         />
                     </div>
                     {/* Right: Search bar */}
@@ -648,6 +713,7 @@ const App: Component = () => {
                             tags={tagsMeta() || []}
                             onResults={setSearchResults}
                             onSearchTextChange={setSearchQuery}
+                            onInputMount={(el) => { searchInputRef = el; }}
                         />
                     </div>
                 </div>
@@ -959,6 +1025,7 @@ const App: Component = () => {
                     showToast(`Merged ${total.memories} memories, ${total.observations} observations from ${sourcePaths.length} project(s)`);
                     refresh();
                 }}
+                onBatchDelete={handleBatchDelete}
             />
 
             <MemoryDetailModal
