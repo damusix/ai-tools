@@ -329,14 +329,31 @@ export function createApp(): Hono {
     app.get('/api/search', (c) => {
         try {
             const q = c.req.query('q') || '';
-            if (!q.trim()) return c.json({ results: [] });
-
             const project = c.req.query('project');
-            const domain = c.req.query('domain');
-            const category = c.req.query('category');
-            const tag = c.req.query('tag');
+            const rawDomain = c.req.query('domain');
+            const rawCategory = c.req.query('category');
+            const rawTag = c.req.query('tag');
             const rawLimit = Number(c.req.query('limit') || '20');
             const limit = rawLimit < 0 ? 20 : rawLimit;
+
+            // Split comma-separated filter values
+            const domain = rawDomain ? rawDomain.split(',').filter(Boolean) : undefined;
+            const category = rawCategory ? rawCategory.split(',').filter(Boolean) : undefined;
+            const tag = rawTag ? rawTag.split(',').filter(Boolean) : undefined;
+
+            // Unwrap single-element arrays to strings for backward compatibility
+            const domainParam = domain?.length === 1 ? domain[0] : domain;
+            const categoryParam = category?.length === 1 ? category[0] : category;
+            const tagParam = tag?.length === 1 ? tag[0] : tag;
+
+            // Filter-only query (no text search)
+            if (!q.trim()) {
+                if (!domainParam && !categoryParam && !tagParam) {
+                    return c.json({ results: [] });
+                }
+                const results = listMemories(project, tagParam, categoryParam, limit, domainParam);
+                return c.json({ results });
+            }
 
             // Extract and filter words (same logic as /api/recall)
             const words = q
@@ -350,7 +367,7 @@ export function createApp(): Hono {
 
             // 1. Word-based FTS with prefix wildcards (precision)
             const wordQuery = unique.map(w => w + '*').join(' OR ');
-            const wordResults = searchMemories(wordQuery, project, tag, category, limit, domain);
+            const wordResults = searchMemories(wordQuery, project, tagParam, categoryParam, limit, domainParam);
 
             // 2. Trigram fallback for remaining slots (substring matching)
             const seen = new Set<number>(wordResults.map((r: any) => r.id));
@@ -359,7 +376,7 @@ export function createApp(): Hono {
             if (limit === 0 || combined.length < limit) {
                 const trigramQuery = unique.join(' OR ');
                 const remaining = limit === 0 ? 0 : limit - combined.length;
-                const trigramResults = searchMemoriesFuzzy(trigramQuery, project, tag, category, remaining, domain);
+                const trigramResults = searchMemoriesFuzzy(trigramQuery, project, tagParam, categoryParam, remaining, domainParam);
                 for (const r of trigramResults) {
                     if (!seen.has(r.id)) {
                         seen.add(r.id);
@@ -372,6 +389,12 @@ export function createApp(): Hono {
         } catch {
             return c.json({ results: [] });
         }
+    });
+
+    // ── HTTP API: Tags ──────────────────────────────────────────────
+    app.get('/api/tags', (c) => {
+        const project = c.req.query('project');
+        return c.json(listTags(project));
     });
 
     // ── HTTP API: Taxonomy summary (domains, categories, top tags) ────

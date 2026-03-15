@@ -41,7 +41,7 @@ const TransferModal: Component<{
             await props.onTransfer(targetPath(), sourcePaths());
             props.onClose();
         } catch (err: any) {
-            setError(err.message || 'Transfer failed');
+            setError(err.message || 'Merge failed');
         } finally {
             setLoading(false);
         }
@@ -64,8 +64,8 @@ const TransferModal: Component<{
                 {/* Header */}
                 <div class="px-5 py-4 border-b border-neutral-700 flex items-center justify-between">
                     <h2 class="text-sm font-semibold text-neutral-200 flex items-center gap-2">
-                        <i class="fa-solid fa-right-left text-sky-400" style="font-size: 14px"></i>
-                        Transfer Projects
+                        <i class="fa-solid fa-right-left text-[#d77757]" style="font-size: 14px"></i>
+                        Merge Projects
                     </h2>
                     <button onClick={props.onClose} class="text-neutral-500 hover:text-neutral-300 p-1 rounded hover:bg-neutral-800">
                         <Icon name="x" size={14} />
@@ -75,14 +75,14 @@ const TransferModal: Component<{
                 <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                     {/* Target section */}
                     <div>
-                        <label class="text-xs font-medium text-neutral-400 mb-2 block">Transfer TO (target)</label>
+                        <label class="text-xs font-medium text-neutral-400 mb-2 block">Merge INTO (target)</label>
                         <div class="flex gap-2 mb-2">
                             <button
-                                class={`px-2 py-1 text-xs rounded ${targetMode() === 'existing' ? 'bg-sky-400/10 text-sky-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                                class={`px-2 py-1 text-xs rounded ${targetMode() === 'existing' ? 'bg-[#d77757]/10 text-[#d77757]' : 'text-neutral-500 hover:text-neutral-300'}`}
                                 onClick={() => setTargetMode('existing')}
                             >Existing project</button>
                             <button
-                                class={`px-2 py-1 text-xs rounded ${targetMode() === 'new' ? 'bg-sky-400/10 text-sky-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                                class={`px-2 py-1 text-xs rounded ${targetMode() === 'new' ? 'bg-[#d77757]/10 text-[#d77757]' : 'text-neutral-500 hover:text-neutral-300'}`}
                                 onClick={() => setTargetMode('new')}
                             >New project path</button>
                         </div>
@@ -111,7 +111,7 @@ const TransferModal: Component<{
                     {/* Source section */}
                     <div>
                         <label class="text-xs font-medium text-neutral-400 mb-2 block">
-                            Transfer FROM (select sources) — {sourcePaths().length} selected
+                            Merge FROM (select sources) — {sourcePaths().length} selected
                         </label>
                         <div class="max-h-48 overflow-y-auto border border-neutral-700 rounded">
                             <For each={availableSources()} fallback={<p class="text-xs text-neutral-600 p-3">No projects available</p>}>
@@ -121,7 +121,7 @@ const TransferModal: Component<{
                                             type="checkbox"
                                             checked={!!selectedSources()[p.path]}
                                             onChange={() => toggleSource(p.path)}
-                                            class="accent-sky-400"
+                                            class="accent-[#d77757]"
                                         />
                                         <span class="text-sm text-neutral-300 flex-1">{shortPath(p.path)}</span>
                                         <span class="text-[10px] text-neutral-600">{p.memory_count}m / {p.observation_count}o</span>
@@ -142,9 +142,9 @@ const TransferModal: Component<{
                     <button
                         onClick={handleSubmit}
                         disabled={!valid() || loading()}
-                        class="text-sm px-3 py-1.5 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="text-sm px-3 py-1.5 rounded bg-[#d77757]/10 text-[#d77757] hover:bg-[#d77757]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading() ? 'Transferring...' : `Transfer ${sourcePaths().length} project(s)`}
+                        {loading() ? 'Merging...' : `Merge ${sourcePaths().length} project(s)`}
                     </button>
                 </div>
             </div>

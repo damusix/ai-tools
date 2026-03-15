@@ -132,7 +132,7 @@ const IconPicker: Component<{ value: string; onChange: (icon: string) => void }>
                                 placeholder="Search all icons..."
                                 value={search()}
                                 onInput={(e) => { setSearch(e.currentTarget.value); if (e.currentTarget.value) setActiveCategory(null); }}
-                                class="w-full pl-7 pr-2 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-sky-500 focus:outline-none"
+                                class="w-full pl-7 pr-2 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-[#d77757] focus:outline-none"
                                 autofocus
                             />
                         </div>
@@ -148,7 +148,7 @@ const IconPicker: Component<{ value: string; onChange: (icon: string) => void }>
                                             onClick={() => setActiveCategory(cat.key)}
                                             class={`w-full text-left px-2.5 py-1.5 text-[10px] transition-colors truncate ${
                                                 (activeCategory() || FA_CATEGORIES[0]?.key) === cat.key
-                                                    ? 'bg-sky-600/20 text-sky-400 font-medium'
+                                                    ? 'bg-[#d77757]/20 text-[#d77757] font-medium'
                                                     : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300'
                                             }`}
                                         >
@@ -169,7 +169,7 @@ const IconPicker: Component<{ value: string; onChange: (icon: string) => void }>
                                             onClick={() => handleSelect(iconName)}
                                             class={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
                                                 currentRaw() === iconName
-                                                    ? 'bg-sky-600 text-white'
+                                                    ? 'bg-[#d77757] text-white'
                                                     : 'hover:bg-neutral-700 text-neutral-400'
                                             }`}
                                             title={iconName}
@@ -222,7 +222,7 @@ const TaxonomyForm: Component<{
                     onInput={(e) => setName(e.currentTarget.value)}
                     disabled={props.mode === 'edit'}
                     placeholder={`e.g. ${props.type === 'domain' ? 'ml' : 'bug'}`}
-                    class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-sky-500 focus:outline-none disabled:opacity-50"
+                    class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-[#d77757] focus:outline-none disabled:opacity-50"
                 />
             </div>
             <div>
@@ -232,7 +232,7 @@ const TaxonomyForm: Component<{
                     value={description()}
                     onInput={(e) => setDescription(e.currentTarget.value)}
                     placeholder="Short description of this item"
-                    class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-sky-500 focus:outline-none"
+                    class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-[#d77757] focus:outline-none"
                 />
             </div>
             <div>
@@ -249,7 +249,7 @@ const TaxonomyForm: Component<{
                 </button>
                 <button
                     type="submit"
-                    class="px-3 py-1.5 text-xs rounded bg-sky-600 hover:bg-sky-500 text-white transition-colors"
+                    class="px-3 py-1.5 text-xs rounded bg-[#d77757] hover:bg-[#d77757] text-white transition-colors"
                 >
                     {props.mode === 'create' ? 'Create' : 'Update'}
                 </button>
@@ -363,7 +363,7 @@ const TaxonomySection: Component<{
                     </h3>
                     <button
                         onClick={() => { setFormMode('create'); setEditTarget(null); }}
-                        class="px-2 py-1 text-[10px] rounded bg-sky-600/20 hover:bg-sky-600/40 text-sky-400 transition-colors flex items-center gap-1"
+                        class="px-2 py-1 text-[10px] rounded bg-[#d77757]/20 hover:bg-[#d77757]/40 text-[#d77757] transition-colors flex items-center gap-1"
                     >
                         <i class="fa-solid fa-plus" style="font-size: 10px" /> Add
                     </button>
@@ -386,7 +386,7 @@ const TaxonomySection: Component<{
                             <div>
                                 <Show when={formMode() === 'edit' && editTarget()?.name === item.name} fallback={
                                     <div class="flex items-center gap-3 px-3.5 py-2 group hover:bg-neutral-800/50">
-                                        <i class={`fa-solid ${item.icon}`} style="font-size: 14px; width: 20px; text-align: center" class:text-sky-400={true} />
+                                        <i class={`fa-solid ${item.icon}`} style="font-size: 14px; width: 20px; text-align: center; color: #d77757" />
                                         <div class="flex-1 min-w-0">
                                             <div class="text-xs font-medium text-neutral-200">{item.name}</div>
                                             <div class="text-[10px] text-neutral-500 truncate">{item.description}</div>
@@ -714,14 +714,14 @@ const Settings: Component<{
                 <div class="px-5 py-4 border-b border-neutral-700">
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-neutral-200 flex items-center gap-2">
-                            <Icon name="gear" size={14} class="text-sky-400" />
+                            <Icon name="gear" size={14} class="text-[#d77757]" />
                             Settings
                         </h2>
                         <div class="flex items-center gap-1">
                             <Show when={props.onHelp}>
                                 <button
                                     onClick={props.onHelp}
-                                    class="text-neutral-500 hover:text-sky-400 p-1 rounded hover:bg-neutral-800 transition-colors"
+                                    class="text-neutral-500 hover:text-[#d77757] p-1 rounded hover:bg-neutral-800 transition-colors"
                                     title="Help"
                                 >
                                     <Icon name="info" size={14} />
@@ -741,7 +741,7 @@ const Settings: Component<{
                                 <button
                                     class={`px-3 py-1.5 text-xs rounded-t flex items-center gap-1.5 transition-colors ${
                                         tab() === t.id
-                                            ? 'bg-neutral-800 text-sky-400 border border-neutral-700 border-b-transparent -mb-px'
+                                            ? 'bg-neutral-800 text-[#d77757] border border-neutral-700 border-b-transparent -mb-px'
                                             : 'text-neutral-500 hover:text-neutral-300'
                                     }`}
                                     onClick={() => { setTab(t.id); closeAiPanel(); }}
@@ -777,7 +777,7 @@ const Settings: Component<{
                                                             type="number"
                                                             value={config()[field.key] ?? field.fallback}
                                                             onInput={(e) => updateField(field.key, Number(e.currentTarget.value))}
-                                                            class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-sky-500 focus:outline-none transition-colors"
+                                                            class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-[#d77757] focus:outline-none transition-colors"
                                                         />
                                                         <p class="text-[10px] text-neutral-500 mt-0.5">{field.desc}</p>
                                                     </div>
@@ -887,7 +887,7 @@ const Settings: Component<{
                             <button
                                 onClick={handleSave}
                                 disabled={saving()}
-                                class="px-3 py-1.5 text-xs rounded bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                                class="px-3 py-1.5 text-xs rounded bg-[#d77757] hover:bg-[#d77757] text-white disabled:opacity-50 transition-colors flex items-center gap-1.5"
                             >
                                 <Icon name="rotate-cw" size={12} class={saving() ? 'animate-spin' : ''} />
                                 {saving() ? 'Restarting...' : 'Save & Restart'}

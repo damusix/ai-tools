@@ -78,6 +78,5 @@ The following features from the handoff doc are already present in the codebase:
 ## Out of Scope
 
 - URL-based routing (Feature 2 from handoff)
-- shadcn-solid migration (Feature 3 from handoff)
-- Plugin installation fix (Feature 6 from handoff)
+- Plugin installation fix (Feature 5 from handoff)
 - Changing restore-defaults from additive to destructive behavior

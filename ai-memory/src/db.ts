@@ -386,10 +386,10 @@ export function updateMemory(
 export function searchMemories(
     query: string,
     projectPath?: string,
-    tag?: string,
-    category?: string,
+    tag?: string | string[],
+    category?: string | string[],
     limit = 20,
-    domain?: string,
+    domain?: string | string[],
 ): any[] {
     const db = getDb();
     let sql = `
@@ -406,16 +406,32 @@ export function searchMemories(
         params.push(projectPath);
     }
     if (tag) {
-        sql += ' AND m.tags LIKE ?';
-        params.push(`%${tag}%`);
+        if (Array.isArray(tag)) {
+            const clauses = tag.map(() => 'm.tags LIKE ?');
+            sql += ` AND (${clauses.join(' OR ')})`;
+            params.push(...tag.map(t => `%${t}%`));
+        } else {
+            sql += ' AND m.tags LIKE ?';
+            params.push(`%${tag}%`);
+        }
     }
     if (category) {
-        sql += ' AND m.category = ?';
-        params.push(category);
+        if (Array.isArray(category)) {
+            sql += ` AND m.category IN (${category.map(() => '?').join(',')})`;
+            params.push(...category);
+        } else {
+            sql += ' AND m.category = ?';
+            params.push(category);
+        }
     }
     if (domain) {
-        sql += ' AND m.domain = ?';
-        params.push(domain);
+        if (Array.isArray(domain)) {
+            sql += ` AND m.domain IN (${domain.map(() => '?').join(',')})`;
+            params.push(...domain);
+        } else {
+            sql += ' AND m.domain = ?';
+            params.push(domain);
+        }
     }
     sql += ' ORDER BY m.importance DESC, m.created_at DESC';
     if (limit > 0) {
@@ -429,10 +445,10 @@ export function searchMemories(
 export function searchMemoriesFuzzy(
     query: string,
     projectPath?: string,
-    tag?: string,
-    category?: string,
+    tag?: string | string[],
+    category?: string | string[],
     limit = 20,
-    domain?: string,
+    domain?: string | string[],
 ): any[] {
     const db = getDb();
     let sql = `
@@ -450,16 +466,32 @@ export function searchMemoriesFuzzy(
         params.push(projectPath);
     }
     if (tag) {
-        sql += ' AND m.tags LIKE ?';
-        params.push(`%${tag}%`);
+        if (Array.isArray(tag)) {
+            const clauses = tag.map(() => 'm.tags LIKE ?');
+            sql += ` AND (${clauses.join(' OR ')})`;
+            params.push(...tag.map(t => `%${t}%`));
+        } else {
+            sql += ' AND m.tags LIKE ?';
+            params.push(`%${tag}%`);
+        }
     }
     if (category) {
-        sql += ' AND m.category = ?';
-        params.push(category);
+        if (Array.isArray(category)) {
+            sql += ` AND m.category IN (${category.map(() => '?').join(',')})`;
+            params.push(...category);
+        } else {
+            sql += ' AND m.category = ?';
+            params.push(category);
+        }
     }
     if (domain) {
-        sql += ' AND m.domain = ?';
-        params.push(domain);
+        if (Array.isArray(domain)) {
+            sql += ` AND m.domain IN (${domain.map(() => '?').join(',')})`;
+            params.push(...domain);
+        } else {
+            sql += ' AND m.domain = ?';
+            params.push(domain);
+        }
     }
     sql += ' ORDER BY rank, m.importance DESC';
     if (limit > 0) {
@@ -470,7 +502,7 @@ export function searchMemoriesFuzzy(
     return db.prepare(sql).all(...params);
 }
 
-export function listMemories(projectPath?: string, tag?: string, category?: string, limit = 50, domain?: string): any[] {
+export function listMemories(projectPath?: string, tag?: string | string[], category?: string | string[], limit = 50, domain?: string | string[]): any[] {
     const db = getDb();
     const conditions: string[] = [];
     const params: any[] = [];
@@ -480,16 +512,32 @@ export function listMemories(projectPath?: string, tag?: string, category?: stri
         params.push(projectPath);
     }
     if (tag) {
-        conditions.push('m.tags LIKE ?');
-        params.push(`%${tag}%`);
+        if (Array.isArray(tag)) {
+            const clauses = tag.map(() => 'm.tags LIKE ?');
+            conditions.push(`(${clauses.join(' OR ')})`);
+            params.push(...tag.map(t => `%${t}%`));
+        } else {
+            conditions.push('m.tags LIKE ?');
+            params.push(`%${tag}%`);
+        }
     }
     if (category) {
-        conditions.push('m.category = ?');
-        params.push(category);
+        if (Array.isArray(category)) {
+            conditions.push(`m.category IN (${category.map(() => '?').join(',')})`);
+            params.push(...category);
+        } else {
+            conditions.push('m.category = ?');
+            params.push(category);
+        }
     }
     if (domain) {
-        conditions.push('m.domain = ?');
-        params.push(domain);
+        if (Array.isArray(domain)) {
+            conditions.push(`m.domain IN (${domain.map(() => '?').join(',')})`);
+            params.push(...domain);
+        } else {
+            conditions.push('m.domain = ?');
+            params.push(domain);
+        }
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

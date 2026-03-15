@@ -236,6 +236,58 @@ describe('GET /api/search', () => {
         expect(json.results).toHaveLength(0);
     });
 
+    it('supports comma-separated domain filter (OR)', async () => {
+        const proj = getOrCreateProject('/test/search-multi');
+        insertMemory(proj.id, 'frontend auth flow', 'auth', 'fact', 3, '', 'frontend');
+        insertMemory(proj.id, 'backend auth flow', 'auth', 'fact', 3, '', 'backend');
+        insertMemory(proj.id, 'data auth flow', 'auth', 'fact', 3, '', 'data');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?q=auth&project=/test/search-multi&domain=frontend,backend');
+        const json = await res.json() as any;
+        expect(json.results).toHaveLength(2);
+        const domains = json.results.map((r: any) => r.domain).sort();
+        expect(domains).toEqual(['backend', 'frontend']);
+    });
+
+    it('supports comma-separated tag filter (OR)', async () => {
+        const proj = getOrCreateProject('/test/search-multi-tag');
+        insertMemory(proj.id, 'jwt auth', 'jwt', 'fact', 3, '', 'backend');
+        insertMemory(proj.id, 'session auth', 'session', 'fact', 3, '', 'backend');
+        insertMemory(proj.id, 'basic auth', 'basic', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?q=auth&project=/test/search-multi-tag&tag=jwt,session');
+        const json = await res.json() as any;
+        expect(json.results).toHaveLength(2);
+    });
+
+    it('returns filter-only results when q is empty but filters are present', async () => {
+        const proj = getOrCreateProject('/test/search-filter-only');
+        insertMemory(proj.id, 'frontend component', 'react', 'fact', 3, '', 'frontend');
+        insertMemory(proj.id, 'backend service', 'node', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?project=/test/search-filter-only&domain=frontend');
+        const json = await res.json() as any;
+        expect(json.results).toHaveLength(1);
+        expect(json.results[0].domain).toBe('frontend');
+    });
+
+    it('supports comma-separated category filter (OR)', async () => {
+        const proj = getOrCreateProject('/test/search-multi-cat');
+        insertMemory(proj.id, 'solution memory', 'tag1', 'solution', 3, '', 'backend');
+        insertMemory(proj.id, 'pattern memory', 'tag2', 'pattern', 3, '', 'backend');
+        insertMemory(proj.id, 'fact memory', 'tag3', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/search?q=memory&project=/test/search-multi-cat&category=solution,pattern');
+        const json = await res.json() as any;
+        expect(json.results).toHaveLength(2);
+        const cats = json.results.map((r: any) => r.category).sort();
+        expect(cats).toEqual(['pattern', 'solution']);
+    });
+
     it('respects domain filter', async () => {
         const proj = getOrCreateProject('/test/search4');
         insertMemory(proj.id, 'frontend authentication', 'auth', 'fact', 3, '', 'frontend');
@@ -271,6 +323,35 @@ describe('GET /api/taxonomy-summary', () => {
         const res = await app.request('/api/taxonomy-summary?project=/test/taxonomy2');
         const json = await res.json() as any;
         expect(json.summary).toContain('backend');
+    });
+});
+
+describe('GET /api/tags', () => {
+    it('returns tags with counts', async () => {
+        const proj = getOrCreateProject('/test/tags');
+        insertMemory(proj.id, 'auth flow', 'auth,security', 'fact', 3, '', 'backend');
+        insertMemory(proj.id, 'auth tokens', 'auth,jwt', 'fact', 3, '', 'backend');
+
+        const app = makeApp();
+        const res = await app.request('/api/tags?project=/test/tags');
+        expect(res.status).toBe(200);
+        const json = await res.json() as any;
+        expect(json).toBeInstanceOf(Array);
+        // "auth" appears in both memories → count=2
+        const authTag = json.find((t: any) => t.tag === 'auth');
+        expect(authTag).toBeDefined();
+        expect(authTag.count).toBe(2);
+    });
+
+    it('returns all tags when no project specified', async () => {
+        const proj = getOrCreateProject('/test/tags2');
+        insertMemory(proj.id, 'test mem', 'unique-tag', 'fact', 3, '', 'general');
+
+        const app = makeApp();
+        const res = await app.request('/api/tags');
+        expect(res.status).toBe(200);
+        const json = await res.json() as any;
+        expect(json.some((t: any) => t.tag === 'unique-tag')).toBe(true);
     });
 });
 

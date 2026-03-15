@@ -1,5 +1,6 @@
 import { createSignal, createResource, createMemo, createEffect, onCleanup, For, Show, type Component } from 'solid-js';
 import { ProjectSelector } from './components/ProjectSelector';
+import { SearchBar } from './components/SearchBar';
 import { MemoryCard } from './components/MemoryCard';
 import { ObservationCard } from './components/ObservationCard';
 import { ConfirmModal } from './components/Modal';
@@ -8,6 +9,7 @@ import HelpDrawer from './components/HelpDrawer';
 import Settings from './components/Settings';
 import TransferModal from './components/TransferModal';
 import Icon from './components/Icon';
+import BrandLogo from './components/BrandLogo';
 import { sse, listen } from './sse';
 
 export type Memory = {
@@ -56,6 +58,9 @@ type ProjectMemoryGroup = {
 const api = async <T,>(path: string, opts?: RequestInit): Promise<T> => (await fetch(path, opts)).json();
 
 const STORAGE_KEY = 'ai-memory:selected-project';
+const COLLAPSED_PROJECTS_KEY = 'ai-memory:collapsed-projects';
+const COLLAPSED_DOMAINS_KEY = 'ai-memory:collapsed-domains';
+const COLLAPSED_CATEGORIES_KEY = 'ai-memory:collapsed-categories';
 
 export const shortPath = (p: string) =>
     p === '_global' ? 'global' : p.replace(/^\/(?:Users|home)\/[^/]+\//, '~/');
@@ -76,15 +81,23 @@ const App: Component = () => {
     const [helpTopic, setHelpTopic] = createSignal('');
     const [stopConfirm, setStopConfirm] = createSignal(false);
     const [stopping, setStopping] = createSignal(false);
+    const [menuOpen, setMenuOpen] = createSignal(false);
+    let menuRef!: HTMLDivElement;
     const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
 
     const [searchQuery, setSearchQuery] = createSignal('');
     const [searchResults, setSearchResults] = createSignal<Memory[] | null>(null);
 
-    const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>({});
-    const [collapsedDomains, setCollapsedDomains] = createSignal<Record<string, boolean>>({});
-    const [collapsedCategories, setCollapsedCategories] = createSignal<Record<string, boolean>>({});
+    const [collapsedProjects, setCollapsedProjects] = createSignal<Record<string, boolean>>(
+        JSON.parse(localStorage.getItem(COLLAPSED_PROJECTS_KEY) || '{}')
+    );
+    const [collapsedDomains, setCollapsedDomains] = createSignal<Record<string, boolean>>(
+        JSON.parse(localStorage.getItem(COLLAPSED_DOMAINS_KEY) || '{}')
+    );
+    const [collapsedCategories, setCollapsedCategories] = createSignal<Record<string, boolean>>(
+        JSON.parse(localStorage.getItem(COLLAPSED_CATEGORIES_KEY) || '{}')
+    );
 
     const toggleProject = (key: string) => {
         setCollapsedProjects(prev => ({ ...prev, [key]: !prev[key] }));
@@ -96,6 +109,11 @@ const App: Component = () => {
         setCollapsedCategories(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    // Persist collapse state to localStorage
+    createEffect(() => localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify(collapsedProjects())));
+    createEffect(() => localStorage.setItem(COLLAPSED_DOMAINS_KEY, JSON.stringify(collapsedDomains())));
+    createEffect(() => localStorage.setItem(COLLAPSED_CATEGORIES_KEY, JSON.stringify(collapsedCategories())));
+
     const selectProject = (path: string) => {
         setProject(path);
         if (path) {
@@ -106,36 +124,6 @@ const App: Component = () => {
     };
 
     const refresh = () => setRefreshKey((k) => k + 1);
-
-    const handleSearch = async (query: string) => {
-        if (!query.trim()) {
-            setSearchResults(null);
-            setSearchQuery('');
-            return;
-        }
-        setSearchQuery(query);
-        try {
-            const projectParam = project()
-                ? `&project=${encodeURIComponent(project())}`
-                : '';
-            const data = await api<{ results: Memory[] }>(
-                `/api/search?q=${encodeURIComponent(query)}${projectParam}`
-            );
-            setSearchResults(data.results);
-        } catch {
-            setSearchResults([]);
-        }
-    };
-
-    const clearSearch = () => {
-        setSearchQuery('');
-        setSearchResults(null);
-    };
-
-    createEffect(() => {
-        project(); // track dependency
-        clearSearch();
-    });
 
     const showToast = (msg: string) => {
         setToast(msg);
@@ -211,6 +199,15 @@ const App: Component = () => {
         setDeleteProjectTarget(null);
     };
 
+    // Close menu on click outside
+    const handleMenuClickOutside = (e: MouseEvent) => {
+        if (menuRef && !menuRef.contains(e.target as Node)) setMenuOpen(false);
+    };
+    createEffect(() => {
+        document.addEventListener('mousedown', handleMenuClickOutside);
+        onCleanup(() => document.removeEventListener('mousedown', handleMenuClickOutside));
+    });
+
     // SSE real-time updates
     for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated']) {
         listen(evt);
@@ -224,8 +221,15 @@ const App: Component = () => {
 
     const [projects] = createResource(() => refreshKey(), () => api<Project[]>('/api/projects'));
 
-    const [domainMeta] = createResource(() => refreshKey(), () => api<{ name: string; icon: string }[]>('/api/domains'));
-    const [categoryMeta] = createResource(() => refreshKey(), () => api<{ name: string; icon: string }[]>('/api/categories'));
+    const [domainMeta] = createResource(() => refreshKey(), () => api<{ name: string; icon: string; count: number }[]>('/api/domains'));
+    const [categoryMeta] = createResource(() => refreshKey(), () => api<{ name: string; icon: string; count: number }[]>('/api/categories'));
+    const [tagsMeta] = createResource(
+        () => ({ project: project(), key: refreshKey() }),
+        ({ project: p }) => {
+            const qs = p ? `?project=${encodeURIComponent(p)}` : '';
+            return api<{ tag: string; count: number }[]>('/api/tags' + qs);
+        },
+    );
 
     const domainIconMap = createMemo(() => {
         const map: Record<string, string> = {};
@@ -355,7 +359,7 @@ const App: Component = () => {
     const InfoBtn: Component<{ topic: string }> = (p) => (
         <button
             onClick={() => openHelp(p.topic)}
-            class="p-1 rounded text-neutral-600 hover:text-sky-400 transition-colors"
+            class="p-1 rounded text-neutral-600 hover:text-[#d77757] transition-colors"
             title="Help"
         >
             <Icon name="info" size={13} />
@@ -365,87 +369,119 @@ const App: Component = () => {
     return (
         <div class="max-w-[1400px] mx-auto flex flex-col h-screen">
             {/* Header */}
-            <header class="flex items-center justify-between px-4 py-4 shrink-0">
-                <div class="flex items-center gap-4">
-                    <h1 class="text-xl font-bold text-neutral-200 flex items-center gap-2">
-                        <Icon name="brain" size={20} class="text-sky-400" />
-                        ai-memory
-                    </h1>
-                    <div class="flex gap-3 text-xs">
-                        <span class="text-sky-300/70 flex items-center gap-1">
-                            <Icon name="brain" size={12} />
-                            {stats()?.memories ?? 0} memories
-                        </span>
-                        <span class="text-purple-300/70 flex items-center gap-1">
-                            <Icon name="eye" size={12} />
-                            {stats()?.observations ?? 0} observations
-                        </span>
+            <header class="shrink-0">
+                {/* Row 1: Brand + actions */}
+                <div class="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-xl font-bold text-neutral-200 flex items-center gap-2">
+                            <BrandLogo size={20} />
+                            ai-memory
+                        </h1>
+                        <a
+                            href="https://github.com/damusix/ai-tools"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-neutral-500 hover:text-[#d77757] transition-colors flex items-center"
+                            title="GitHub"
+                        >
+                            <i class="fa-brands fa-github" style="font-size: 16px"></i>
+                        </a>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button
+                            onClick={() => openHelp('about')}
+                            class="px-2 py-1.5 rounded text-neutral-500 hover:text-[#d77757] transition-colors flex items-center"
+                            title="Help"
+                        >
+                            <Icon name="info" size={15} />
+                        </button>
+                        <div ref={menuRef} class="relative">
+                            <button
+                                onClick={() => setMenuOpen(v => !v)}
+                                class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
+                            >
+                                <i class="fa-solid fa-bars" style="font-size: 13px"></i>
+                                Menu
+                            </button>
+                            <Show when={menuOpen()}>
+                                <div class="absolute right-0 top-[calc(100%+4px)] z-50 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg overflow-hidden">
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
+                                        onClick={() => { setSettingsOpen(true); setMenuOpen(false); }}
+                                    >
+                                        <Icon name="gear" size={13} />
+                                        Settings
+                                    </button>
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
+                                        onClick={() => { setLogsOpen(true); setMenuOpen(false); }}
+                                    >
+                                        <Icon name="terminal" size={13} />
+                                        Logs
+                                    </button>
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
+                                        onClick={() => { setTransferOpen(true); setMenuOpen(false); }}
+                                    >
+                                        <Icon name="transfer" size={13} />
+                                        Merge projects
+                                    </button>
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                                        disabled={cleaningUp()}
+                                        onClick={() => { handleCleanup(); setMenuOpen(false); }}
+                                    >
+                                        <Icon name="broom" size={13} />
+                                        {cleaningUp() ? 'Cleaning...' : 'Clean up'}
+                                    </button>
+                                    <div class="border-t border-neutral-700/50" />
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-yellow-400 hover:bg-yellow-900/20 transition-colors disabled:opacity-50"
+                                        disabled={restarting()}
+                                        onClick={() => { handleRestart(); setMenuOpen(false); }}
+                                    >
+                                        <Icon name="rotate-cw" size={13} class={restarting() ? 'animate-spin' : ''} />
+                                        Restart
+                                    </button>
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-red-400 hover:bg-red-900/20 transition-colors"
+                                        onClick={() => { setStopConfirm(true); setMenuOpen(false); }}
+                                    >
+                                        <i class="fa-solid fa-stop" style="font-size: 13px"></i>
+                                        Stop server
+                                    </button>
+                                </div>
+                            </Show>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-<button
-                        onClick={() => setSettingsOpen(true)}
-                        class="px-2 py-1.5 rounded text-neutral-500 hover:text-sky-400 transition-colors flex items-center"
-                        title="Settings"
-                    >
-                        <Icon name="gear" size={15} />
-                    </button>
-                    <button
-                        onClick={() => openHelp('about')}
-                        class="px-2 py-1.5 rounded text-neutral-500 hover:text-sky-400 transition-colors flex items-center"
-                        title="Help"
-                    >
-                        <Icon name="info" size={15} />
-                    </button>
-                    <button
-                        onClick={() => setLogsOpen(true)}
-                        class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
-                        title="View server logs"
-                    >
-                        <Icon name="terminal" size={14} />
-                        Logs
-                    </button>
-                    <button
-                        onClick={() => setTransferOpen(true)}
-                        class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors flex items-center gap-1.5"
-                        title="Transfer memories between projects"
-                    >
-                        <Icon name="transfer" size={14} />
-                        Transfer
-                    </button>
-                    <button
-                        onClick={handleCleanup}
-                        disabled={cleaningUp()}
-                        class="px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-                        title="Remove junk observations and duplicate memories"
-                    >
-                        <Icon name="broom" size={14} />
-                        {cleaningUp() ? 'Cleaning...' : 'Clean up'}
-                    </button>
-                    <button
-                        onClick={handleRestart}
-                        disabled={restarting()}
-                        class="px-2 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 disabled:opacity-50 transition-colors flex items-center"
-                        title="Restart the ai-memory server"
-                    >
-                        <Icon name="rotate-cw" size={14} class={restarting() ? 'animate-spin' : ''} />
-                    </button>
-                    <button
-                        onClick={() => setStopConfirm(true)}
-                        class="px-2 py-1.5 text-xs rounded bg-red-900/30 hover:bg-red-900/50 text-red-400 transition-colors flex items-center"
-                        title="Stop the ai-memory server"
-                    >
-                        <i class="fa-solid fa-stop" style="font-size: 14px"></i>
-                    </button>
-                    <ProjectSelector
-                        projects={projects() || []}
-                        selected={project()}
-                        onChange={selectProject}
-                        onDeleteProject={() => {
-                            const proj = (projects() || []).find((p: any) => p.path === project());
-                            if (proj) setDeleteProjectTarget(proj);
-                        }}
-                    />
+
+                {/* Row 2: Project + Search context strip */}
+                <div class="flex items-start gap-4 px-4 py-2 bg-neutral-950 border-b border-neutral-800/50">
+                    {/* Left: Project selector */}
+                    <div class="w-[240px] shrink-0">
+                        <ProjectSelector
+                            projects={projects() || []}
+                            selected={project()}
+                            onChange={selectProject}
+                            onDeleteProject={() => {
+                                const proj = (projects() || []).find((p: any) => p.path === project());
+                                if (proj) setDeleteProjectTarget(proj);
+                            }}
+                            stats={stats()}
+                        />
+                    </div>
+                    {/* Right: Search bar */}
+                    <div class="flex-1">
+                        <SearchBar
+                            project={project()}
+                            domains={domainMeta() || []}
+                            categories={categoryMeta() || []}
+                            tags={tagsMeta() || []}
+                            onResults={setSearchResults}
+                            onSearchTextChange={setSearchQuery}
+                        />
+                    </div>
                 </div>
             </header>
 
@@ -515,27 +551,6 @@ const App: Component = () => {
 
                     {/* Memories main panel */}
                     <main class="flex-1 overflow-y-auto p-4">
-                        {/* Search bar */}
-                        <div class="mb-3 relative">
-                            <input
-                                type="text"
-                                placeholder="Search memories..."
-                                class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
-                                value={searchQuery()}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSearch(e.currentTarget.value);
-                                }}
-                            />
-                            <Show when={searchResults() !== null}>
-                                <button
-                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 text-xs"
-                                    onClick={clearSearch}
-                                    title="Clear search"
-                                >
-                                    <Icon name="x" size={14} />
-                                </button>
-                            </Show>
-                        </div>
                         <Show when={searchResults() !== null} fallback={
                             <Show
                                 when={(memories()?.length ?? 0) > 0}
@@ -555,7 +570,7 @@ const App: Component = () => {
                                                             onClick={() => toggleProject(projGroup.project)}
                                                             title={projectDescMap()[projGroup.project] || projGroup.project}
                                                         >
-                                                            <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-sky-400`} style="font-size: 16px"></i>
+                                                            <i class={`fa-solid ${projGroup.project === '_global' ? 'fa-globe' : (projectIconMap()[projGroup.project] || 'fa-folder-open')} text-[#d77757]`} style="font-size: 16px"></i>
                                                             <div class="flex flex-col items-start min-w-0">
                                                                 <span class="text-sm font-bold text-neutral-200 truncate max-w-full">{shortPath(projGroup.project)}</span>
                                                                 <Show when={projectDescMap()[projGroup.project]}>
@@ -726,7 +741,7 @@ const App: Component = () => {
                         memories: acc.memories + (r.memories || 0),
                         observations: acc.observations + (r.observations || 0),
                     }), { memories: 0, observations: 0 });
-                    showToast(`Transferred ${total.memories} memories, ${total.observations} observations from ${sourcePaths.length} project(s)`);
+                    showToast(`Merged ${total.memories} memories, ${total.observations} observations from ${sourcePaths.length} project(s)`);
                     refresh();
                 }}
             />
