@@ -28,6 +28,7 @@ import {
 import { broadcast } from './sse.js';
 import { log, error as logError } from './logger.js';
 import { getConfig } from './config.js';
+import { checkProjectSummaries } from './summary.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, 'prompts');
@@ -175,6 +176,10 @@ export function startWorker(): void {
             pollCount++;
             if (pollCount % 10 === 0) {
                 await enrichProjects();
+            }
+            const summaryEvery = Math.max(1, Math.round(getConfig().worker.summary.checkIntervalMs / getConfig().worker.pollIntervalMs));
+            if (pollCount % summaryEvery === 0) {
+                await checkProjectSummaries();
             }
         } catch (err) {
             logError('worker', `Error: ${err}`);

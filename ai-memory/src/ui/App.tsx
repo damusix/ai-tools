@@ -10,6 +10,7 @@ import Settings from './components/Settings';
 import TransferModal from './components/TransferModal';
 import Icon from './components/Icon';
 import BrandLogo from './components/BrandLogo';
+import MemoryDetailModal from './components/MemoryDetailModal';
 import { sse, listen } from './sse';
 
 export type Memory = {
@@ -20,6 +21,7 @@ export type Memory = {
     importance: number;
     domain: string | null;
     reason: string;
+    observation_ids: string;
     created_at: string;
     updated_at: string;
     project_path: string;
@@ -40,6 +42,7 @@ export type Project = {
     name: string;
     icon: string;
     description: string;
+    summary: string;
     created_at: string;
     observation_count: number;
     memory_count: number;
@@ -61,12 +64,13 @@ const STORAGE_KEY = 'ai-memory:selected-project';
 const COLLAPSED_PROJECTS_KEY = 'ai-memory:collapsed-projects';
 const COLLAPSED_DOMAINS_KEY = 'ai-memory:collapsed-domains';
 const COLLAPSED_CATEGORIES_KEY = 'ai-memory:collapsed-categories';
+const COLLAPSED_SUMMARIES_KEY = 'ai-memory:collapsed-summaries';
 
 export const shortPath = (p: string) =>
     p === '_global' ? 'global' : p.replace(/^\/(?:Users|home)\/[^/]+\//, '~/');
 
 
-const MODAL_PARAMS = ['settings', 'merge', 'help', 'logs'] as const;
+const MODAL_PARAMS = ['settings', 'merge', 'help', 'logs', 'memory'] as const;
 
 const App: Component = () => {
     const [project, setProject] = createSignal(localStorage.getItem(STORAGE_KEY) || '');
@@ -87,6 +91,10 @@ const App: Component = () => {
     const [menuOpen, setMenuOpen] = createSignal(false);
     let menuRef!: HTMLDivElement;
     const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
+    const [memoryDetailOpen, setMemoryDetailOpen] = createSignal(false);
+    const [memoryDetail, setMemoryDetail] = createSignal<Memory | null>(null);
+    const [taxonomyDomains, setTaxonomyDomains] = createSignal<any[]>([]);
+    const [taxonomyCategories, setTaxonomyCategories] = createSignal<any[]>([]);
 
     // ── URL-based routing ────────────────────────────────────────────
     let modalPushed = false;
@@ -103,6 +111,15 @@ const App: Component = () => {
             else setSettingsTab('config');
         }
         if (params.has('help')) setHelpTopic(params.get('help') || '');
+        if (params.has('memory')) {
+            const memId = parseInt(params.get('memory')!, 10);
+            if (!isNaN(memId) && !memoryDetailOpen()) {
+                openMemoryDetail(memId);
+            }
+        } else {
+            setMemoryDetailOpen(false);
+            setMemoryDetail(null);
+        }
     };
 
     const openModalUrl = (params: Record<string, string>) => {
@@ -151,6 +168,52 @@ const App: Component = () => {
     const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); openModalUrl({ help: topic }); };
     const closeHelp = () => { setHelpOpen(false); closeModalUrl(); };
 
+    const openMemoryDetail = async (memOrId: Memory | number) => {
+        let mem: Memory;
+        if (typeof memOrId === 'number') {
+            try {
+                const res = await fetch(`/api/memories/${memOrId}`);
+                if (!res.ok) { showToast('Memory not found'); return; }
+                mem = await res.json();
+            } catch { showToast('Failed to load memory'); return; }
+        } else {
+            mem = memOrId;
+        }
+        try {
+            const [d, c] = await Promise.all([
+                fetch('/api/domains').then(r => r.json()),
+                fetch('/api/categories').then(r => r.json()),
+            ]);
+            setTaxonomyDomains(d);
+            setTaxonomyCategories(c);
+        } catch { /* dropdowns will be empty */ }
+        setMemoryDetail(mem);
+        setMemoryDetailOpen(true);
+        openModalUrl({ memory: String(mem.id) });
+    };
+
+    const closeMemoryDetail = () => {
+        setMemoryDetailOpen(false);
+        setMemoryDetail(null);
+        closeModalUrl();
+    };
+
+    const handleMemoryUpdate = async (id: number, fields: {
+        content: string; tags: string; category: string; importance: number; domain: string | null;
+    }) => {
+        const res = await fetch(`/api/memories/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fields),
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Update failed');
+        }
+        showToast('Memory updated');
+        refresh();
+    };
+
     const handleSettingsTabChange = (tab: 'config' | 'domains' | 'categories') => {
         setSettingsTab(tab);
         const url = new URL(window.location.href);
@@ -185,6 +248,7 @@ const App: Component = () => {
     createEffect(() => localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify(collapsedProjects())));
     createEffect(() => localStorage.setItem(COLLAPSED_DOMAINS_KEY, JSON.stringify(collapsedDomains())));
     createEffect(() => localStorage.setItem(COLLAPSED_CATEGORIES_KEY, JSON.stringify(collapsedCategories())));
+    createEffect(() => localStorage.setItem(COLLAPSED_SUMMARIES_KEY, JSON.stringify(collapsedSummaries())));
 
     const selectProject = (path: string) => {
         setProject(path);
@@ -281,12 +345,12 @@ const App: Component = () => {
     });
 
     // SSE real-time updates
-    for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated']) {
+    for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated', 'summary:updated']) {
         listen(evt);
         sse.addEventListener(evt, refresh);
     }
     onCleanup(() => {
-        for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated']) {
+        for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated', 'summary:updated']) {
             sse.removeEventListener(evt, refresh);
         }
     });
@@ -325,6 +389,38 @@ const App: Component = () => {
         for (const p of projects() || []) map[p.path] = p.description;
         return map;
     });
+
+    const projectSummaryMap = createMemo(() => {
+        const map: Record<string, string> = {};
+        for (const p of projects() || []) if (p.summary) map[p.path] = p.summary;
+        return map;
+    });
+
+    const [collapsedSummaries, setCollapsedSummaries] = createSignal<Record<string, boolean>>(
+        JSON.parse(localStorage.getItem(COLLAPSED_SUMMARIES_KEY) || '{}')
+    );
+    const toggleSummary = (key: string) => {
+        setCollapsedSummaries(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const [generatingSummary, setGeneratingSummary] = createSignal<Record<string, boolean>>({});
+    const triggerSummary = async (projectPath: string) => {
+        const proj = (projects() || []).find((p: Project) => p.path === projectPath);
+        if (!proj) return;
+        setGeneratingSummary(prev => ({ ...prev, [projectPath]: true }));
+        try {
+            const res = await fetch(`/api/projects/${proj.id}/summary`, { method: 'POST' });
+            if (res.ok) {
+                showToast('Summary generated');
+                refresh();
+            } else {
+                showToast('Summary generation failed');
+            }
+        } catch {
+            showToast('Summary generation failed');
+        }
+        setGeneratingSummary(prev => ({ ...prev, [projectPath]: false }));
+    };
 
     const [memories] = createResource(
         () => ({ project: project(), key: refreshKey() }),
@@ -669,6 +765,51 @@ const App: Component = () => {
                                                         </Show>
                                                     </div>
                                                 </Show>
+                                                {/* Project summary section */}
+                                                {(() => {
+                                                    // In single-project mode, projGroup.project is '_' — resolve to the actual selected project path
+                                                    const summaryPath = projGroup.project === '_' ? project() : projGroup.project;
+                                                    if (!summaryPath || summaryPath === '_global') return null;
+                                                    if (projGroup.project !== '_' && collapsedProjects()[projGroup.project]) return null;
+                                                    return (
+                                                        <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} px-4 py-2`}>
+                                                            <Show when={projectSummaryMap()[summaryPath]} fallback={
+                                                                <button
+                                                                    class="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-amber-400 transition-colors disabled:opacity-40"
+                                                                    onClick={() => triggerSummary(summaryPath)}
+                                                                    disabled={generatingSummary()[summaryPath]}
+                                                                >
+                                                                    <i class={`fa-solid ${generatingSummary()[summaryPath] ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'}`} style="font-size: 10px"></i>
+                                                                    <span>{generatingSummary()[summaryPath] ? 'Generating summary...' : 'Generate AI Summary'}</span>
+                                                                </button>
+                                                            }>
+                                                                <div class="flex items-center gap-1.5">
+                                                                    <button
+                                                                        class="flex items-center gap-1.5 text-xs text-amber-500/80 hover:text-amber-400 transition-colors flex-1"
+                                                                        onClick={() => toggleSummary(summaryPath)}
+                                                                    >
+                                                                        <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 10px"></i>
+                                                                        <span class="font-medium">AI Summary</span>
+                                                                        <Icon name={collapsedSummaries()[summaryPath] ? 'chevron-right' : 'chevron-down'} size={10} class="text-amber-500/60" />
+                                                                    </button>
+                                                                    <button
+                                                                        class="p-1 rounded text-neutral-600 hover:text-amber-400 hover:bg-amber-400/10 transition-colors disabled:opacity-40"
+                                                                        onClick={() => triggerSummary(summaryPath)}
+                                                                        disabled={generatingSummary()[summaryPath]}
+                                                                        title="Regenerate summary"
+                                                                    >
+                                                                        <i class={`fa-solid ${generatingSummary()[summaryPath] ? 'fa-spinner fa-spin' : 'fa-arrows-rotate'}`} style="font-size: 10px"></i>
+                                                                    </button>
+                                                                </div>
+                                                                <Show when={!collapsedSummaries()[summaryPath]}>
+                                                                    <div class="mt-2 text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap bg-neutral-900/40 rounded-lg p-3 border border-amber-500/10">
+                                                                        {projectSummaryMap()[summaryPath]}
+                                                                    </div>
+                                                                </Show>
+                                                            </Show>
+                                                        </div>
+                                                    );
+                                                })()}
                                                 <Show when={projGroup.project === '_' || !collapsedProjects()[projGroup.project]}>
                                                     <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} p-3 flex flex-col gap-3`}>
                                                         <For each={projGroup.domains}>
@@ -714,6 +855,7 @@ const App: Component = () => {
                                                                                                                 <MemoryCard
                                                                                                                     memory={m}
                                                                                                                     onDelete={(id) => setDeleteTarget({ type: 'memories', id })}
+                                                                                                                    onExpand={(m) => openMemoryDetail(m)}
                                                                                                                     domainIcon={domainIconMap()[m.domain || ''] || 'fa-folder'}
                                                                                                                     categoryIcon={categoryIconMap()[m.category] || 'fa-bookmark'}
                                                                                                                 />
@@ -752,6 +894,7 @@ const App: Component = () => {
                                             <MemoryCard
                                                 memory={m}
                                                 onDelete={(id) => setDeleteTarget({ type: 'memories', id })}
+                                                onExpand={(m) => openMemoryDetail(m)}
                                                 domainIcon={domainIconMap()[m.domain || ''] || 'fa-folder'}
                                                 categoryIcon={categoryIconMap()[m.category] || 'fa-bookmark'}
                                             />
@@ -816,6 +959,16 @@ const App: Component = () => {
                     showToast(`Merged ${total.memories} memories, ${total.observations} observations from ${sourcePaths.length} project(s)`);
                     refresh();
                 }}
+            />
+
+            <MemoryDetailModal
+                memory={memoryDetail()}
+                domains={taxonomyDomains()}
+                categories={taxonomyCategories()}
+                open={memoryDetailOpen()}
+                onClose={closeMemoryDetail}
+                onUpdate={handleMemoryUpdate}
+                showToast={showToast}
             />
 
             <Show when={toast()}>

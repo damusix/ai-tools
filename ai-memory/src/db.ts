@@ -199,6 +199,24 @@ function initSchema(db: Database.Database): void {
         })();
     }
 
+    // Migration: add summary columns to projects
+    const projectCols = db.prepare("PRAGMA table_info('projects')").all() as { name: string }[];
+    const projectColNames: Record<string, true> = {};
+    for (const c of projectCols) projectColNames[c.name] = true;
+
+    if (!projectColNames['summary']) {
+        db.exec("ALTER TABLE projects ADD COLUMN summary TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['summary_hash']) {
+        db.exec("ALTER TABLE projects ADD COLUMN summary_hash TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['summary_snapshot']) {
+        db.exec("ALTER TABLE projects ADD COLUMN summary_snapshot TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['summary_incremental_count']) {
+        db.exec("ALTER TABLE projects ADD COLUMN summary_incremental_count INTEGER NOT NULL DEFAULT 0");
+    }
+
     // Seed default domains
     const insertDomainStmt = db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)');
     for (const [name, desc, icon] of DOMAIN_SEED) {
@@ -263,7 +281,7 @@ export function listProjects(): any[] {
     return db
         .prepare(
             `
-        SELECT p.id, p.path, p.name, p.icon, p.description, p.created_at,
+        SELECT p.id, p.path, p.name, p.icon, p.description, p.created_at, p.summary,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
             (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
         FROM projects p
@@ -393,7 +411,7 @@ export function searchMemories(
 ): any[] {
     const db = getDb();
     let sql = `
-        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, m.observation_ids, p.path as project_path
         FROM memories m
         JOIN memories_fts f ON m.id = f.rowid
         JOIN projects p ON m.project_id = p.id
@@ -453,7 +471,7 @@ export function searchMemoriesFuzzy(
     const db = getDb();
     let sql = `
         SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain,
-               m.created_at, m.updated_at, m.reason, p.path as project_path
+               m.created_at, m.updated_at, m.reason, m.observation_ids, p.path as project_path
         FROM memories m
         JOIN memories_trigram f ON m.id = f.rowid
         JOIN projects p ON m.project_id = p.id
@@ -542,7 +560,7 @@ export function listMemories(projectPath?: string, tag?: string | string[], cate
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     let sql = `
-        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, p.path as project_path
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain, m.created_at, m.updated_at, m.reason, m.observation_ids, p.path as project_path
         FROM memories m
         JOIN projects p ON m.project_id = p.id
         ${where}
@@ -554,6 +572,17 @@ export function listMemories(projectPath?: string, tag?: string | string[], cate
     }
 
     return db.prepare(sql).all(...params);
+}
+
+export function getMemoryById(id: number): any | null {
+    const db = getDb();
+    return db.prepare(`
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain,
+               m.created_at, m.updated_at, m.reason, m.observation_ids, p.path as project_path
+        FROM memories m
+        JOIN projects p ON m.project_id = p.id
+        WHERE m.id = ?
+    `).get(id) ?? null;
 }
 
 export function deleteMemory(id: number): boolean {
@@ -749,7 +778,7 @@ export function listTags(projectPath?: string): { tag: string; count: number }[]
     }
     return Object.entries(counts)
         .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => b.count - a.count);
+        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
 // ── Queue queries ───────────────────────────────────────────────
@@ -854,8 +883,12 @@ export function transferProject(fromPath: string, toPath: string): { memories: n
         return { memories: memCount, observations: obsCount };
     }
 
-    // Target exists — move all records to target, then delete source
+    // Target exists — prefix memories with source path, move all records to target, then delete source
+    const shortFrom = fromPath.replace(/^\/(?:Users|home)\/[^/]+\//, '~/');
     const transfer = db.transaction(() => {
+        db.prepare(
+            "UPDATE memories SET content = '[Merged from ' || ? || '] ' || content WHERE project_id = ?"
+        ).run(shortFrom, source.id);
         db.prepare('UPDATE memories SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
         db.prepare('UPDATE observations SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
         db.prepare('UPDATE observation_queue SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
@@ -869,6 +902,66 @@ export function transferProject(fromPath: string, toPath: string): { memories: n
     });
 
     return transfer();
+}
+
+export function getProjectSummaryState(projectId: number): {
+    summary: string;
+    summary_hash: string;
+    summary_snapshot: string;
+    summary_incremental_count: number;
+} {
+    const db = getDb();
+    return db.prepare(
+        'SELECT summary, summary_hash, summary_snapshot, summary_incremental_count FROM projects WHERE id = ?'
+    ).get(projectId) as any;
+}
+
+export function updateProjectSummary(
+    projectId: number,
+    summary: string,
+    hash: string,
+    snapshot: string,
+    incrementalCount: number,
+): void {
+    const db = getDb();
+    db.prepare(
+        'UPDATE projects SET summary = ?, summary_hash = ?, summary_snapshot = ?, summary_incremental_count = ? WHERE id = ?'
+    ).run(summary, hash, snapshot, incrementalCount, projectId);
+}
+
+export function getMemoriesForHashing(projectId: number): {
+    id: number; content: string; tags: string; domain: string | null;
+    category: string; importance: number; created_at: string; updated_at: string;
+}[] {
+    const db = getDb();
+    const project = db.prepare('SELECT path FROM projects WHERE id = ?').get(projectId) as any;
+    if (!project) return [];
+
+    let sql: string;
+    const params: any[] = [];
+
+    if (project.path === '_global') {
+        sql = `
+            SELECT m.id, m.content, m.tags, m.domain, m.category, m.importance,
+                   m.created_at, m.updated_at
+            FROM memories m
+            JOIN projects p ON m.project_id = p.id
+            WHERE p.path = '_global'
+            ORDER BY m.id
+        `;
+    } else {
+        sql = `
+            SELECT m.id, m.content, m.tags, m.domain, m.category, m.importance,
+                   m.created_at, m.updated_at
+            FROM memories m
+            JOIN projects p ON m.project_id = p.id
+            WHERE p.path = ? OR p.path = '_global'
+            ORDER BY m.id
+        `;
+        params.push(project.path);
+    }
+
+    return db.prepare(sql).all(...params) as any[];
 }
 
 export function countUnprocessedObservations(projectId: number): number {

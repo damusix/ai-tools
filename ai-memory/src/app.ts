@@ -33,12 +33,15 @@ import {
     restoreDefaultCategories,
     getStats,
     listTags,
+    getMemoryById,
+    updateMemory,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
 import { createResponse } from 'better-sse';
 import { channel, broadcast } from './sse.js';
 import { runCleanup } from './worker.js';
+import { generateSummary, computeMemoryHash, computeMemorySnapshot } from './summary.js';
 import { log } from './logger.js';
 import { getConfig, configSchema, writeConfigYaml } from './config.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
@@ -148,6 +151,36 @@ export function createApp(): Hono {
             broadcast('memory:deleted', { id });
         }
         return c.json({ deleted });
+    });
+
+    app.get('/api/memories/:id', (c) => {
+        const id = parseInt(c.req.param('id'), 10);
+        if (isNaN(id)) return c.json({ error: 'Invalid memory ID' }, 400);
+        const memory = getMemoryById(id);
+        if (!memory) return c.json({ error: 'Memory not found' }, 404);
+        return c.json(memory);
+    });
+
+    app.put('/api/memories/:id', async (c) => {
+        const id = parseInt(c.req.param('id'), 10);
+        if (isNaN(id)) return c.json({ error: 'Invalid memory ID' }, 400);
+        const existing = getMemoryById(id);
+        if (!existing) return c.json({ error: 'Memory not found' }, 404);
+        const body = await c.req.json();
+        const content = body.content ?? existing.content;
+        const tags = body.tags ?? existing.tags;
+        const category = body.category ?? existing.category;
+        const importance = body.importance ?? existing.importance;
+        const domain = body.domain !== undefined ? body.domain : existing.domain;
+        try {
+            updateMemory(id, content, tags, category, importance, existing.observation_ids, domain, existing.reason);
+        } catch (e: any) {
+            return c.json({ error: e.message }, 400);
+        }
+        const updated = getMemoryById(id);
+        log('api', `Memory ${id} updated`);
+        broadcast('memory:updated', updated);
+        return c.json(updated);
     });
 
     app.get('/api/domains', (c) => {
@@ -429,6 +462,11 @@ export function createApp(): Hono {
             const result = transferProject(from, to);
             log('api', `Transferred project ${from} → ${to} (${result.memories} memories, ${result.observations} observations)`);
             broadcast('project:transferred', { from, to, ...result });
+
+            // Regenerate summary for the target project after transfer
+            const target = getOrCreateProject(to);
+            generateSummary(target.id, 'full').catch(() => {});
+
             return c.json({ transferred: true, ...result });
         } catch (err: any) {
             return c.json({ error: err.message }, 404);
@@ -452,6 +490,11 @@ export function createApp(): Hono {
         }
 
         broadcast('counts:updated', {});
+
+        // Regenerate summary for the target project after merge
+        const target = getOrCreateProject(targetPath);
+        generateSummary(target.id, 'full').catch(() => {});
+
         return c.json({ results });
     });
 
@@ -494,6 +537,14 @@ export function createApp(): Hono {
         log('api', `Cleanup triggered${projectId ? ` for project ${projectId}` : ' (all projects)'}`);
         const result = await runCleanup(projectId ? parseInt(projectId, 10) : undefined);
         return c.json(result);
+    });
+
+    app.post('/api/projects/:id/summary', async (c) => {
+        const id = Number(c.req.param('id'));
+        log('api', `Manual summary generation triggered for project ${id}`);
+        const ok = await generateSummary(id, 'full');
+        if (!ok) return c.json({ error: 'Summary generation failed' }, 500);
+        return c.json({ ok: true });
     });
 
     // ── Config endpoints ──────────────────────────────────────────

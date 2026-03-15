@@ -38,6 +38,9 @@ import {
     forceDeleteCategory,
     listProjects,
     getStats,
+    getProjectSummaryState,
+    updateProjectSummary,
+    getMemoriesForHashing,
 } from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
@@ -414,6 +417,87 @@ describe('project enrichment', () => {
         const p = all.find((pr: any) => pr.path === '/test/enrich');
         expect(p.icon).toBe('fa-rocket');
         expect(p.description).toBe('A rocket science project');
+    });
+});
+
+describe('project summary state', () => {
+    it('getProjectSummaryState returns defaults for new project', () => {
+        const proj = getOrCreateProject('/test/summary');
+        const state = getProjectSummaryState(proj.id);
+        expect(state.summary).toBe('');
+        expect(state.summary_hash).toBe('');
+        expect(state.summary_snapshot).toBe('');
+        expect(state.summary_incremental_count).toBe(0);
+    });
+
+    it('updateProjectSummary stores and retrieves state', () => {
+        const proj = getOrCreateProject('/test/summary2');
+        const snapshot = JSON.stringify({ 1: 'abc', 2: 'def' });
+        updateProjectSummary(proj.id, 'Test summary text', 'hash123', snapshot, 3);
+
+        const state = getProjectSummaryState(proj.id);
+        expect(state.summary).toBe('Test summary text');
+        expect(state.summary_hash).toBe('hash123');
+        expect(state.summary_snapshot).toBe(snapshot);
+        expect(state.summary_incremental_count).toBe(3);
+    });
+
+    it('updateProjectSummary overwrites previous state', () => {
+        const proj = getOrCreateProject('/test/summary3');
+        updateProjectSummary(proj.id, 'old', 'h1', '{}', 5);
+        updateProjectSummary(proj.id, 'new', 'h2', '{"3":"x"}', 0);
+
+        const state = getProjectSummaryState(proj.id);
+        expect(state.summary).toBe('new');
+        expect(state.summary_hash).toBe('h2');
+        expect(state.summary_incremental_count).toBe(0);
+    });
+});
+
+describe('getMemoriesForHashing', () => {
+    it('returns all memories for a project ordered by id', () => {
+        const proj = getOrCreateProject('/test/hash');
+        insertMemory(proj.id, 'mem1', 'tag1', 'fact', 3, '', 'frontend');
+        insertMemory(proj.id, 'mem2', 'tag2', 'decision', 5, '', 'backend');
+
+        const mems = getMemoriesForHashing(proj.id);
+        expect(mems.length).toBe(2);
+        expect(mems[0].id).toBeLessThan(mems[1].id);
+        expect(mems[0]).toHaveProperty('content');
+        expect(mems[0]).toHaveProperty('tags');
+        expect(mems[0]).toHaveProperty('domain');
+        expect(mems[0]).toHaveProperty('category');
+        expect(mems[0]).toHaveProperty('importance');
+    });
+
+    it('includes _global memories when querying a specific project', () => {
+        const proj = getOrCreateProject('/test/hash-global');
+        const global = getOrCreateProject('_global');
+        insertMemory(proj.id, 'proj mem', '', 'fact', 3, '', 'frontend');
+        insertMemory(global.id, 'global mem', '', 'fact', 3, '', 'general');
+
+        const mems = getMemoriesForHashing(proj.id);
+        expect(mems.length).toBe(2);
+    });
+
+    it('returns only _global memories for _global project', () => {
+        const proj = getOrCreateProject('/test/hash-global2');
+        const global = getOrCreateProject('_global');
+        insertMemory(proj.id, 'proj mem', '', 'fact', 3, '');
+        insertMemory(global.id, 'global mem', '', 'fact', 3, '');
+
+        const globalMems = getMemoriesForHashing(global.id);
+        expect(globalMems.length).toBe(1);
+        expect(globalMems[0].content).toBe('global mem');
+    });
+
+    it('returns memories with no limit', () => {
+        const proj = getOrCreateProject('/test/hash-nolimit');
+        for (let i = 0; i < 60; i++) {
+            insertMemory(proj.id, `mem ${i}`, '', 'fact', 3, '');
+        }
+        const mems = getMemoriesForHashing(proj.id);
+        expect(mems.length).toBe(60);
     });
 });
 

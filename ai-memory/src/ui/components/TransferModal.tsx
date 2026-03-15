@@ -1,4 +1,4 @@
-import { createSignal, createEffect, Show, For, type Component } from 'solid-js';
+import { createSignal, createEffect, createMemo, Show, For, type Component } from 'solid-js';
 import Overlay from './Overlay';
 import Icon from './Icon';
 import type { Project } from '../App';
@@ -16,6 +16,7 @@ const TransferModal: Component<{
     const [selectedSources, setSelectedSources] = createSignal<Record<string, boolean>>({});
     const [loading, setLoading] = createSignal(false);
     const [error, setError] = createSignal('');
+    const [sourceFilter, setSourceFilter] = createSignal('');
 
     const targetPath = () => targetMode() === 'existing' ? targetExisting() : targetNew().trim();
 
@@ -26,6 +27,19 @@ const TransferModal: Component<{
     const availableSources = () => props.projects.filter(
         p => p.path !== '_global' && p.path !== targetPath()
     );
+
+    const filteredSources = createMemo(() => {
+        const q = sourceFilter().trim();
+        if (!q) return availableSources();
+        try {
+            const re = new RegExp(q, 'i');
+            return availableSources().filter(p => re.test(p.path));
+        } catch {
+            // Invalid regex — fall back to plain substring
+            const lower = q.toLowerCase();
+            return availableSources().filter(p => p.path.toLowerCase().includes(lower));
+        }
+    });
 
     const toggleSource = (path: string) => {
         setSelectedSources(prev => ({ ...prev, [path]: !prev[path] }));
@@ -54,6 +68,7 @@ const TransferModal: Component<{
             setTargetExisting('');
             setTargetNew('');
             setSelectedSources({});
+            setSourceFilter('');
             setError('');
         }
     });
@@ -113,18 +128,34 @@ const TransferModal: Component<{
                         <label class="text-xs font-medium text-neutral-400 mb-2 block">
                             Merge FROM (select sources) — {sourcePaths().length} selected
                         </label>
+                        <div class="relative mb-2">
+                            <i class="fa-solid fa-filter absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-600" style="font-size: 10px"></i>
+                            <input
+                                type="text"
+                                value={sourceFilter()}
+                                onInput={e => setSourceFilter(e.currentTarget.value)}
+                                placeholder="Filter projects (regex)..."
+                                class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 pl-7 text-xs text-neutral-200 placeholder:text-neutral-600"
+                            />
+                        </div>
                         <div class="max-h-48 overflow-y-auto border border-neutral-700 rounded">
-                            <For each={availableSources()} fallback={<p class="text-xs text-neutral-600 p-3">No projects available</p>}>
+                            <For each={filteredSources()} fallback={<p class="text-xs text-neutral-600 p-3">{sourceFilter() ? 'No matching projects' : 'No projects available'}</p>}>
                                 {p => (
-                                    <label class="flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 cursor-pointer border-b border-neutral-800 last:border-0">
+                                    <label
+                                        class={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b last:border-0 transition-colors ${
+                                            selectedSources()[p.path]
+                                                ? 'border-l-[3px] border-l-[#d77757] border-b-[#d77757]/20 bg-[#d77757]/10'
+                                                : 'border-l-[3px] border-l-transparent border-b-neutral-800 hover:bg-neutral-800'
+                                        }`}
+                                    >
                                         <input
                                             type="checkbox"
                                             checked={!!selectedSources()[p.path]}
                                             onChange={() => toggleSource(p.path)}
                                             class="accent-[#d77757]"
                                         />
-                                        <span class="text-sm text-neutral-300 flex-1">{shortPath(p.path)}</span>
-                                        <span class="text-[10px] text-neutral-600">{p.memory_count}m / {p.observation_count}o</span>
+                                        <span class={`text-sm flex-1 ${selectedSources()[p.path] ? 'text-[#d77757]' : 'text-neutral-300'}`}>{shortPath(p.path)}</span>
+                                        <span class={`text-[10px] ${selectedSources()[p.path] ? 'text-[#d77757]/60' : 'text-neutral-600'}`}>{p.memory_count}m / {p.observation_count}o</span>
                                     </label>
                                 )}
                             </For>

@@ -127,6 +127,62 @@ describe('API', () => {
         expect(json2.deleted).toBe(false);
     });
 
+    it('GET /api/memories/:id returns a memory', async () => {
+        const app = makeApp();
+        const proj = getOrCreateProject('test-proj');
+        const memId = insertMemory(proj.id, 'test content', 'tag1,tag2', 'fact', 3, '1,2', 'frontend');
+        const res = await app.request(`/api/memories/${memId}`);
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.content).toBe('test content');
+        expect(data.observation_ids).toBe('1,2');
+        expect(data.project_path).toBe('test-proj');
+    });
+
+    it('GET /api/memories/:id returns 404 for missing memory', async () => {
+        const app = makeApp();
+        const res = await app.request('/api/memories/99999');
+        expect(res.status).toBe(404);
+    });
+
+    it('GET /api/memories/:id returns 400 for invalid ID', async () => {
+        const app = makeApp();
+        const res = await app.request('/api/memories/abc');
+        expect(res.status).toBe(400);
+    });
+
+    it('PUT /api/memories/:id updates fields', async () => {
+        const app = makeApp();
+        const proj = getOrCreateProject('test-proj');
+        const memId = insertMemory(proj.id, 'old content', 'old-tag', 'fact', 2, '1', 'frontend');
+        const res = await req(app, 'PUT', `/api/memories/${memId}`, {
+            content: 'new content',
+            tags: 'new-tag',
+            importance: 5,
+        });
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.content).toBe('new content');
+        expect(data.tags).toBe('new-tag');
+        expect(data.importance).toBe(5);
+        expect(data.category).toBe('fact');
+        expect(data.observation_ids).toBe('1');
+    });
+
+    it('PUT /api/memories/:id returns 404 for missing memory', async () => {
+        const app = makeApp();
+        const res = await req(app, 'PUT', '/api/memories/99999', { content: 'x' });
+        expect(res.status).toBe(404);
+    });
+
+    it('PUT /api/memories/:id returns 400 for invalid category', async () => {
+        const app = makeApp();
+        const proj = getOrCreateProject('test-proj');
+        const memId = insertMemory(proj.id, 'content', '', 'fact', 3, '');
+        const res = await req(app, 'PUT', `/api/memories/${memId}`, { category: 'nonexistent' });
+        expect(res.status).toBe(400);
+    });
+
     it('GET /api/stats returns total counts', async () => {
         const app = makeApp();
         const proj = getOrCreateProject('_global');

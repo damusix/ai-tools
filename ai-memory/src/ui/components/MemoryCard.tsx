@@ -7,6 +7,7 @@ const fmtDate = (d: string) => (d ? new Date(d).toLocaleString() : '');
 export const MemoryCard: Component<{
     memory: Memory;
     onDelete: (id: number) => void;
+    onExpand?: (memory: Memory) => void;
     animation?: string;
     widthClass?: string;
     domainIcon?: string;
@@ -15,7 +16,10 @@ export const MemoryCard: Component<{
     const m = props.memory;
     const width = () => props.widthClass || 'w-[calc(33.333%-11px)] min-w-[280px]';
     return (
-        <div class={`${width()} flex flex-col rounded-lg border border-[#d77757]/10 bg-[#d77757]/[0.03] p-4 hover:border-[#d77757]/20 transition-colors ${props.animation || ''}`}>
+        <div
+            class={`group ${width()} flex flex-col rounded-lg border border-[#d77757]/10 bg-[#d77757]/[0.03] p-4 hover:border-[#d77757]/20 transition-colors ${props.animation || ''}`}
+            onDblClick={() => props.onExpand?.(m)}
+        >
             <div class="flex items-start justify-between gap-3 mb-2">
                 <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="px-2 py-0.5 rounded text-xs font-medium bg-[#d77757]/10 text-[#d77757]/80 flex items-center gap-1">
@@ -37,6 +41,15 @@ export const MemoryCard: Component<{
                             )}
                         </For>
                     </span>
+                    <Show when={props.onExpand}>
+                        <button
+                            onClick={() => props.onExpand!(m)}
+                            class="text-neutral-500 hover:text-[#d77757] text-xs px-1.5 py-0.5 rounded hover:bg-[#d77757]/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="View details"
+                        >
+                            <Icon name="expand" size={12} />
+                        </button>
+                    </Show>
                     <button
                         onClick={() => props.onDelete(m.id)}
                         class="text-neutral-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded hover:bg-red-400/10"

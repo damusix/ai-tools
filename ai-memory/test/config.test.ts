@@ -43,6 +43,13 @@ describe('config', () => {
         expect(cfg.context.memoryTokenBudget).toBe(1000); // default
     });
 
+    it('summary config has correct defaults', () => {
+        const config = loadConfig(join(TMP, 'nonexistent.yaml'));
+        expect(config.worker.summary.quietPeriodMs).toBe(300000);
+        expect(config.worker.summary.maxIncrementalCycles).toBe(10);
+        expect(config.worker.summary.checkIntervalMs).toBe(60000);
+    });
+
     it('rejects invalid values', () => {
         const path = join(TMP, 'invalid.yaml');
         writeConfigYaml(path, { worker: { pollIntervalMs: -1 } });

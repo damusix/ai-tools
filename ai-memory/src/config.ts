@@ -4,6 +4,12 @@ import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { parse, stringify } from 'yaml';
 
+const summarySchema = z.object({
+    quietPeriodMs: z.number().min(60000).default(300000),
+    maxIncrementalCycles: z.number().min(1).default(10),
+    checkIntervalMs: z.number().min(10000).default(60000),
+});
+
 const workerSchema = z.object({
     pollIntervalMs: z.number().min(1000).default(5000),
     observationSynthesisThreshold: z.number().min(1).default(10),
@@ -18,6 +24,7 @@ const workerSchema = z.object({
     cleanupObservationsLimit: z.number().min(1).default(200),
     cleanupMemoriesLimit: z.number().min(1).default(100),
     extractionPayloadMaxChars: z.number().min(100).default(8000),
+    summary: summarySchema.default({}),
 });
 
 const contextSchema = z.object({
@@ -50,7 +57,11 @@ let cached: AppConfig | null = null;
 
 function applyDefaults(raw: Record<string, unknown>): AppConfig {
     // Parse each section individually to ensure inner defaults are applied
-    const worker = workerSchema.parse(raw.worker ?? {});
+    const rawWorker = (raw.worker ?? {}) as Record<string, unknown>;
+    const worker = workerSchema.parse({
+        ...rawWorker,
+        summary: summarySchema.parse(rawWorker.summary ?? {}),
+    });
     const context = contextSchema.parse(raw.context ?? {});
     const server = serverSchema.parse(raw.server ?? {});
     const api = apiSchema.parse(raw.api ?? {});
