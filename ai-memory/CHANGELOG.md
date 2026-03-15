@@ -7,6 +7,11 @@
 - skip delete confirmation for zero-count taxonomy items
 - show memory count on domain headers
 - add stderr logging to hooks.log for hook debugging
+
+## 1.1.0
+
+### Features
+
 - add search bar with dual-index word+trigram results
 - add PreToolUse hook to inject taxonomy before search_memories
 - inject domain and category taxonomy into startup context
