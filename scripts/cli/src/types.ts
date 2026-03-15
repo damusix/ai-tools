@@ -22,3 +22,8 @@ export interface VersionGroup {
     fixes: string[];
     breaking: string[];
 }
+
+export interface GitLogEntry {
+    hash: string;
+    commit: ParsedCommit | null;
+}

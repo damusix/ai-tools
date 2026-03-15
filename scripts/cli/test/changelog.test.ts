@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseCommit, groupCommitsByVersion, renderChangelog } from "../src/lib/changelog.js";
-import type { ParsedCommit, VersionGroup } from "../src/types.js";
+import type { ParsedCommit, VersionGroup, GitLogEntry } from "../src/types.js";
 
 describe("parseCommit", () => {
     it("parses a feat commit", () => {
@@ -55,13 +55,13 @@ describe("parseCommit", () => {
 
 describe("groupCommitsByVersion", () => {
     it("groups commits under a single version when no tags exist", () => {
-        const commits: ParsedCommit[] = [
-            { hash: "a", type: "feat", scope: null, description: "add feature", breaking: false },
-            { hash: "b", type: "fix", scope: null, description: "fix bug", breaking: false },
+        const entries: GitLogEntry[] = [
+            { hash: "a", commit: { hash: "a", type: "feat", scope: null, description: "add feature", breaking: false } },
+            { hash: "b", commit: { hash: "b", type: "fix", scope: null, description: "fix bug", breaking: false } },
         ];
         const tags: Record<string, string> = {};
 
-        const groups = groupCommitsByVersion(commits, tags, "1.0.0");
+        const groups = groupCommitsByVersion(entries, tags, "1.0.0");
         expect(groups).toHaveLength(1);
         expect(groups[0].version).toBe("1.0.0");
         expect(groups[0].features).toEqual(["add feature"]);
@@ -69,24 +69,25 @@ describe("groupCommitsByVersion", () => {
     });
 
     it("does not double-count breaking changes in features/fixes", () => {
-        const commits: ParsedCommit[] = [
-            { hash: "a", type: "feat", scope: null, description: "redesign API", breaking: true },
+        const entries: GitLogEntry[] = [
+            { hash: "a", commit: { hash: "a", type: "feat", scope: null, description: "redesign API", breaking: true } },
         ];
 
-        const groups = groupCommitsByVersion(commits, {}, "1.0.0");
+        const groups = groupCommitsByVersion(entries, {}, "1.0.0");
         expect(groups[0].breaking).toEqual(["redesign API"]);
         expect(groups[0].features).toEqual([]);
     });
 
     it("splits commits at tag boundaries", () => {
-        const commits: ParsedCommit[] = [
-            { hash: "a", type: "feat", scope: null, description: "new thing", breaking: false },
-            { hash: "b", type: "fix", scope: null, description: "old fix", breaking: false },
+        const entries: GitLogEntry[] = [
+            { hash: "a", commit: { hash: "a", type: "feat", scope: null, description: "new thing", breaking: false } },
+            { hash: "b", commit: null }, // release commit — carries the tag but no changelog content
+            { hash: "c", commit: { hash: "c", type: "fix", scope: null, description: "old fix", breaking: false } },
         ];
-        // Tag at commit "b" means "b" belongs to 1.0.0
+        // Tag at commit "b" means commits after "b" belong to 1.0.0
         const tags: Record<string, string> = { b: "1.0.0" };
 
-        const groups = groupCommitsByVersion(commits, tags, "1.1.0");
+        const groups = groupCommitsByVersion(entries, tags, "1.1.0");
         expect(groups).toHaveLength(2);
         expect(groups[0].version).toBe("1.1.0");
         expect(groups[0].features).toEqual(["new thing"]);

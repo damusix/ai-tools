@@ -1,4 +1,4 @@
-import type { ParsedCommit, VersionGroup } from "../types.js";
+import type { ParsedCommit, VersionGroup, GitLogEntry } from "../types.js";
 
 const CONVENTIONAL_RE = /^(\w+)(\(([^)]+)\))?(!)?:\s+(.+)$/;
 const INCLUDED_TYPES: Record<string, true> = { feat: true, fix: true };
@@ -27,7 +27,7 @@ export function parseCommit(hash: string, subject: string, body?: string): Parse
 }
 
 export function groupCommitsByVersion(
-    commits: ParsedCommit[],
+    entries: GitLogEntry[],
     tags: Record<string, string>,
     currentVersion: string
 ): VersionGroup[] {
@@ -39,31 +39,34 @@ export function groupCommitsByVersion(
         breaking: [],
     };
 
-    for (const commit of commits) {
+    for (const entry of entries) {
         // Check if this commit has a tag — if so, start a new group
-        if (tags[commit.hash]) {
+        if (tags[entry.hash]) {
             // Push current group if it has content
             if (current.features.length || current.fixes.length || current.breaking.length) {
                 groups.push(current);
             }
             current = {
-                version: tags[commit.hash],
+                version: tags[entry.hash],
                 features: [],
                 fixes: [],
                 breaking: [],
             };
         }
 
-        if (commit.breaking) {
-            current.breaking.push(commit.description);
+        // Only add content for conventional commits
+        if (!entry.commit) continue;
+
+        if (entry.commit.breaking) {
+            current.breaking.push(entry.commit.description);
         }
 
         // Breaking changes only appear in the Breaking Changes section
-        if (!commit.breaking) {
-            if (commit.type === "feat") {
-                current.features.push(commit.description);
-            } else if (commit.type === "fix") {
-                current.fixes.push(commit.description);
+        if (!entry.commit.breaking) {
+            if (entry.commit.type === "feat") {
+                current.features.push(entry.commit.description);
+            } else if (entry.commit.type === "fix") {
+                current.fixes.push(entry.commit.description);
             }
         }
     }
@@ -104,7 +107,7 @@ export function renderChangelog(groups: VersionGroup[]): string {
     return lines.join("\n");
 }
 
-export function getGitLog(repoRoot: string, pluginSourceDir: string): ParsedCommit[] {
+export function getGitLog(repoRoot: string, pluginSourceDir: string): GitLogEntry[] {
     // %x1E (record separator) delimits commits, %x00 (null) delimits fields within a commit
     const result = Bun.spawnSync(
         ["git", "log", "--format=%H%x00%s%x00%b%x1E", "--", pluginSourceDir + "/"],
@@ -114,19 +117,19 @@ export function getGitLog(repoRoot: string, pluginSourceDir: string): ParsedComm
     const stdout = result.stdout.toString();
     if (!stdout.trim()) return [];
 
-    const commits: ParsedCommit[] = [];
-    const entries = stdout.split("\x1E").filter((e) => e.trim());
+    const entries: GitLogEntry[] = [];
+    const rawEntries = stdout.split("\x1E").filter((e) => e.trim());
 
-    for (const entry of entries) {
+    for (const entry of rawEntries) {
         const parts = entry.trim().split("\0");
         if (parts.length < 2) continue;
         const [hash, subject, ...bodyParts] = parts;
         const body = bodyParts.join("").trim();
         const parsed = parseCommit(hash, subject, body || undefined);
-        if (parsed) commits.push(parsed);
+        entries.push({ hash, commit: parsed });
     }
 
-    return commits;
+    return entries;
 }
 
 export function getVersionTags(repoRoot: string, pluginName: string): Record<string, string> {
