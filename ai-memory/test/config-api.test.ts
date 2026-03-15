@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { rmSync, mkdtempSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('config write', () => {
-    const tmpDir = join(import.meta.dirname, '..', 'tmp');
-    const configPath = join(tmpDir, 'config.yaml');
+    let tmpDir: string;
+    let configPath: string;
 
     beforeEach(() => {
-        if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+        tmpDir = mkdtempSync(join(tmpdir(), 'ai-memory-configapi-'));
+        configPath = join(tmpDir, 'config.yaml');
     });
 
     afterEach(() => {

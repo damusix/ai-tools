@@ -66,6 +66,8 @@ export const shortPath = (p: string) =>
     p === '_global' ? 'global' : p.replace(/^\/(?:Users|home)\/[^/]+\//, '~/');
 
 
+const MODAL_PARAMS = ['settings', 'merge', 'help', 'logs'] as const;
+
 const App: Component = () => {
     const [project, setProject] = createSignal(localStorage.getItem(STORAGE_KEY) || '');
     const [refreshKey, setRefreshKey] = createSignal(0);
@@ -76,6 +78,7 @@ const App: Component = () => {
     const [logsOpen, setLogsOpen] = createSignal(false);
     const [helpOpen, setHelpOpen] = createSignal(false);
     const [settingsOpen, setSettingsOpen] = createSignal(false);
+    const [settingsTab, setSettingsTab] = createSignal<'config' | 'domains' | 'categories'>('config');
 
     const [transferOpen, setTransferOpen] = createSignal(false);
     const [helpTopic, setHelpTopic] = createSignal('');
@@ -84,7 +87,76 @@ const App: Component = () => {
     const [menuOpen, setMenuOpen] = createSignal(false);
     let menuRef!: HTMLDivElement;
     const [deleteProjectTarget, setDeleteProjectTarget] = createSignal<Project | null>(null);
-    const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); };
+
+    // ── URL-based routing ────────────────────────────────────────────
+    let modalPushed = false;
+
+    const syncFromUrl = () => {
+        const params = new URLSearchParams(window.location.search);
+        setSettingsOpen(params.has('settings'));
+        setTransferOpen(params.has('merge'));
+        setLogsOpen(params.has('logs'));
+        setHelpOpen(params.has('help'));
+        if (params.has('settings')) {
+            const tab = params.get('settings');
+            if (tab === 'domains' || tab === 'categories') setSettingsTab(tab);
+            else setSettingsTab('config');
+        }
+        if (params.has('help')) setHelpTopic(params.get('help') || '');
+    };
+
+    const openModalUrl = (params: Record<string, string>) => {
+        const url = new URL(window.location.href);
+        const hadModal = MODAL_PARAMS.some(k => url.searchParams.has(k));
+        for (const k of MODAL_PARAMS) url.searchParams.delete(k);
+        for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v || '');
+        if (hadModal) {
+            history.replaceState({ modal: true }, '', url);
+        } else {
+            history.pushState({ modal: true }, '', url);
+            modalPushed = true;
+        }
+    };
+
+    const closeModalUrl = () => {
+        if (modalPushed) {
+            modalPushed = false;
+            history.back();
+        } else {
+            const url = new URL(window.location.href);
+            for (const k of MODAL_PARAMS) url.searchParams.delete(k);
+            history.replaceState(null, '', url);
+        }
+    };
+
+    // Initialize from URL on mount
+    syncFromUrl();
+    window.addEventListener('popstate', () => { modalPushed = false; syncFromUrl(); });
+    onCleanup(() => window.removeEventListener('popstate', syncFromUrl));
+
+    const openSettings = (tab: 'config' | 'domains' | 'categories' = 'config') => {
+        setSettingsTab(tab);
+        setSettingsOpen(true);
+        openModalUrl({ settings: tab });
+    };
+
+    const closeSettings = () => { setSettingsOpen(false); closeModalUrl(); };
+
+    const openTransfer = () => { setTransferOpen(true); openModalUrl({ merge: '' }); };
+    const closeTransfer = () => { setTransferOpen(false); closeModalUrl(); };
+
+    const openLogs = () => { setLogsOpen(true); openModalUrl({ logs: '' }); };
+    const closeLogs = () => { setLogsOpen(false); closeModalUrl(); };
+
+    const openHelp = (topic: string) => { setHelpTopic(topic); setHelpOpen(true); openModalUrl({ help: topic }); };
+    const closeHelp = () => { setHelpOpen(false); closeModalUrl(); };
+
+    const handleSettingsTabChange = (tab: 'config' | 'domains' | 'categories') => {
+        setSettingsTab(tab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('settings', tab);
+        history.replaceState({ modal: true }, '', url);
+    };
 
     const [searchQuery, setSearchQuery] = createSignal('');
     const [searchResults, setSearchResults] = createSignal<Memory[] | null>(null);
@@ -407,21 +479,21 @@ const App: Component = () => {
                                 <div class="absolute right-0 top-[calc(100%+4px)] z-50 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg overflow-hidden">
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
-                                        onClick={() => { setSettingsOpen(true); setMenuOpen(false); }}
+                                        onClick={() => { openSettings(); setMenuOpen(false); }}
                                     >
                                         <Icon name="gear" size={13} />
                                         Settings
                                     </button>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
-                                        onClick={() => { setLogsOpen(true); setMenuOpen(false); }}
+                                        onClick={() => { openLogs(); setMenuOpen(false); }}
                                     >
                                         <Icon name="terminal" size={13} />
                                         Logs
                                     </button>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
-                                        onClick={() => { setTransferOpen(true); setMenuOpen(false); }}
+                                        onClick={() => { openTransfer(); setMenuOpen(false); }}
                                     >
                                         <Icon name="transfer" size={13} />
                                         Merge projects
@@ -718,17 +790,17 @@ const App: Component = () => {
                 onCancel={() => setDeleteProjectTarget(null)}
             />
 
-            <TerminalLogs open={logsOpen()} onClose={() => setLogsOpen(false)} />
+            <TerminalLogs open={logsOpen()} onClose={closeLogs} />
 
-            <HelpDrawer open={helpOpen()} topic={helpTopic()} onClose={() => setHelpOpen(false)} />
+            <HelpDrawer open={helpOpen()} topic={helpTopic()} onClose={closeHelp} />
 
-            <Settings open={settingsOpen()} onClose={() => setSettingsOpen(false)} showToast={showToast} onHelp={() => { setSettingsOpen(false); openHelp('settings'); }} />
+            <Settings open={settingsOpen()} initialTab={settingsTab()} onClose={closeSettings} onTabChange={handleSettingsTabChange} showToast={showToast} onHelp={() => { closeSettings(); openHelp('settings'); }} />
 
 
             <TransferModal
                 open={transferOpen()}
                 projects={projects() || []}
-                onClose={() => setTransferOpen(false)}
+                onClose={closeTransfer}
                 onTransfer={async (targetPath, sourcePaths) => {
                     const res = await fetch('/api/projects/transfer-batch', {
                         method: 'POST',

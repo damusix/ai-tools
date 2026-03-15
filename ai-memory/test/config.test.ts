@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, mkdirSync } from 'node:fs';
+import { rmSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { loadConfig, writeConfigYaml, configSchema } from '../src/config.js';
 
-const TMP = join(import.meta.dirname, '..', 'tmp');
+let TMP: string;
 
 describe('config', () => {
     beforeEach(() => {
-        mkdirSync(TMP, { recursive: true });
+        TMP = mkdtempSync(join(tmpdir(), 'ai-memory-config-'));
     });
 
     afterEach(() => {

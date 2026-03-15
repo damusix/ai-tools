@@ -2,13 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getOrCreateProject, insertMemory } from '../src/db.js';
 import { buildStartupContext } from '../src/context.js';
 import { join } from 'node:path';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
-const TEST_DIR = join(import.meta.dirname, '..', 'tmp', 'test-context');
-const TEST_DB = join(TEST_DIR, 'test.db');
+let TEST_DIR: string;
+let TEST_DB: string;
 
 beforeEach(() => {
-    mkdirSync(TEST_DIR, { recursive: true });
+    TEST_DIR = mkdtempSync(join(tmpdir(), 'ai-memory-context-'));
+    TEST_DB = join(TEST_DIR, 'test.db');
     initDb(TEST_DB);
 });
 

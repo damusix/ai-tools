@@ -304,26 +304,8 @@ const TaxonomySection: Component<{
         }
     };
 
-    const handleDelete = async (item: TaxonomyItem) => {
-        if (item.count > 0) {
-            setDeleteTarget(item);
-            return;
-        }
-        const endpoint = props.type === 'domain'
-            ? `/api/domains/${encodeURIComponent(item.name)}`
-            : `/api/categories/${encodeURIComponent(item.name)}`;
-        try {
-            const res = await fetch(endpoint, { method: 'DELETE' });
-            if (res.ok) {
-                props.showToast(`${props.type} "${item.name}" deleted`);
-                props.onRefresh();
-            } else {
-                const err = await res.json();
-                props.showToast(err.error || 'Delete failed');
-            }
-        } catch {
-            props.showToast('Delete failed');
-        }
+    const handleDelete = (item: TaxonomyItem) => {
+        setDeleteTarget(item);
     };
 
     const confirmDelete = async () => {
@@ -544,11 +526,17 @@ const AiGeneratePanel: Component<{
 
 const Settings: Component<{
     open: boolean;
+    initialTab?: 'config' | 'domains' | 'categories';
     onClose: () => void;
+    onTabChange?: (tab: 'config' | 'domains' | 'categories') => void;
     showToast: (msg: string) => void;
     onHelp?: () => void;
 }> = (props) => {
-    const [tab, setTab] = createSignal<'config' | 'domains' | 'categories'>('config');
+    const [tab, setTab] = createSignal<'config' | 'domains' | 'categories'>(props.initialTab || 'config');
+
+    createEffect(() => {
+        if (props.open && props.initialTab) setTab(props.initialTab);
+    });
     const [config, setConfig] = createSignal<Record<string, number>>({});
     const [saving, setSaving] = createSignal(false);
     const [domains, setDomains] = createSignal<TaxonomyItem[]>([]);
@@ -744,7 +732,7 @@ const Settings: Component<{
                                             ? 'bg-neutral-800 text-[#d77757] border border-neutral-700 border-b-transparent -mb-px'
                                             : 'text-neutral-500 hover:text-neutral-300'
                                     }`}
-                                    onClick={() => { setTab(t.id); closeAiPanel(); }}
+                                    onClick={() => { setTab(t.id); closeAiPanel(); props.onTabChange?.(t.id); }}
                                 >
                                     <i class={`fa-solid ${t.icon}`} style="font-size: 11px"></i>
                                     {t.label}

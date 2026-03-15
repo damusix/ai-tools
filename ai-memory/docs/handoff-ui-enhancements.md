@@ -23,67 +23,15 @@ These features from the original handoff are **complete** — do not re-implemen
 
 ## Remaining Features
 
-
-### Feature 1: URL-Based Routing
-
-**Status:** NOT STARTED. No router dependency installed.
-
-Settings, Transfer (now "Merge projects"), and Help modals are controlled by in-memory SolidJS signals. Browser back/forward doesn't work with modals.
-
-**Recommended approach:** Lightweight URL params (no new dependency). Use `URLSearchParams` + `window.location.search` to sync modal state:
-- `?settings=config` opens Settings to config tab
-- `?merge=true` opens Merge projects modal
-
-**Files to modify:**
-
-| File | Change |
-|------|--------|
-| `src/ui/App.tsx` | Sync modal signals with URL params |
-| `src/ui/components/Settings.tsx` | Sync tab signal with URL params |
-| `src/ui/components/TransferModal.tsx` | Sync open/close with URL params |
+All features from this handoff are **complete**.
 
 
-### Feature 2: Settings UX Polish (Partially Done)
+## Completed Features (This Session)
 
-**Status:** ~40% complete. See `docs/plans/2026-03-04-settings-ux-polish.md`.
-
-**What exists:**
-- Domain/category count fields returned by backend
-- Settings.tsx has 3-tab layout (config, domains, categories)
-- Worker config fields exposed in Settings UI
-
-**What's missing:**
-- Restore-defaults backend functions (`restoreDefaultDomains()`, `restoreDefaultCategories()`) in `src/db.ts`
-- API endpoints: `/api/domains/restore-defaults`, `/api/categories/restore-defaults` in `src/app.ts`
-- Help text for Domains and Categories tabs in Settings.tsx
-- Unified single-button delete with conditional confirmation messaging
-- Per-tab restore defaults footer with confirmation modal
-
-**Files to modify:**
-
-| File | Change |
-|------|--------|
-| `src/db.ts` | Export seed arrays, add restore functions |
-| `src/app.ts` | Add restore-defaults endpoints |
-| `src/ui/components/Settings.tsx` | Help text, delete UX, restore footers |
-
-
-### Feature 3: Plugin Installation Fix
-
-**Status:** Design only. See `docs/plans/2026-03-05-fix-plugin-installation-design.md`.
-
-- `scripts/setup.sh` — Use cascading diagnostic gates instead of monolithic install
-- `scripts/build.sh` — Remove `sync-versions.sh` call (script doesn't exist in cache)
-- `hooks/scripts/startup.sh` — Related startup flow improvements
-
-
-### Feature 4: Flaky Test Fix
-
-**Status:** Pre-existing. Two tests fail intermittently with `SqliteError: disk I/O error` or `directory does not exist`:
-- `test/domains.test.ts` — "should create domains table with seeded data"
-- `test/context-domains.test.ts` — "should group memories by domain with headers"
-
-Root cause: race condition in tmp directory setup for test databases. 98/100 tests pass consistently.
+- **URL-based routing** — Modal open/close and Settings tab synced with URL query params (`?settings=config|domains|categories`, `?merge`, `?help=topic`, `?logs`). Browser back/forward works via pushState/popstate. Commit `4ab7f79`.
+- **Settings UX polish** — All items complete: help text, AI generate explanation, unified delete with confirmation, per-tab restore defaults footer, restore-defaults backend+endpoints.
+- **Plugin installation fix** — Cascading diagnostic gates in setup.sh, sync-versions removed from build.sh, startup.sh always calls setup.
+- **Flaky test fix** — Root cause: config tests deleted the entire `tmp/` parent directory, racing with other test files. Fix: all 5 test files now use `mkdtempSync` for unique isolated temp directories. Commit `5515246`.
 
 
 ## Build & Test
