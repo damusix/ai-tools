@@ -1,8 +1,7 @@
 import { listMemories, listTags, getOrCreateProject, listDomainsRaw, listCategoriesRaw, getProjectSummaryState } from './db.js';
 import { log } from './logger.js';
 import { getConfig } from './config.js';
-
-const CHARS_PER_TOKEN = 4;
+import { countTokens } from './tokens.js';
 
 function formatMemoryLine(m: any): string {
     return `- [${m.category}] (${m.importance}) ${m.content}${m.tags ? ` tags: ${m.tags}` : ''}`;
@@ -15,7 +14,7 @@ function formatMemoryLine(m: any): string {
  */
 function buildDeterministicMemories(
     allMemories: any[],
-    maxMemoryChars: number,
+    maxTokens: number,
 ): { text: string; selectedCount: number; totalCount: number; domainNames: string[] } {
     const totalCount = allMemories.length;
 
@@ -30,17 +29,18 @@ function buildDeterministicMemories(
     const domainNames = Object.keys(byDomain).sort();
     const selected: { domain: string; memory: any }[] = [];
     const used = new Set<number>();
-    let charCount = 0;
+    let tokenCount = 0;
 
     // Phase 1: top-1 per domain
     for (const domain of domainNames) {
         const top = byDomain[domain][0];
         if (top) {
             const line = formatMemoryLine(top);
-            if (charCount + line.length <= maxMemoryChars) {
+            const lineTokens = countTokens(line);
+            if (tokenCount + lineTokens <= maxTokens) {
                 selected.push({ domain, memory: top });
                 used.add(top.id);
-                charCount += line.length;
+                tokenCount += lineTokens;
             }
         }
     }
@@ -49,9 +49,10 @@ function buildDeterministicMemories(
     const remaining = allMemories.filter(m => !used.has(m.id));
     for (const m of remaining) {
         const line = formatMemoryLine(m);
-        if (charCount + line.length > maxMemoryChars) break;
+        const lineTokens = countTokens(line);
+        if (tokenCount + lineTokens > maxTokens) break;
         selected.push({ domain: m.domain || 'general', memory: m });
-        charCount += line.length;
+        tokenCount += lineTokens;
     }
 
     // Build grouped output
@@ -94,34 +95,33 @@ export function buildStartupContext(projectPath: string): string {
     const allMemories = listMemories(projectPath, undefined, undefined, 100);
     const tags = listTags(projectPath);
 
-    const maxMemoryChars = getConfig().context.memoryTokenBudget * CHARS_PER_TOKEN;
-    const budgetWithTolerance = (getConfig().context.memoryTokenBudget + 200) * CHARS_PER_TOKEN;
+    const memoryBudget = getConfig().context.memoryTokenBudget;
+    const budgetWithTolerance = memoryBudget + 200;
 
     const lines: string[] = [];
     lines.push(`<memory-context project="${projectPath}">`);
 
-    // Compute total formatted size to decide which path to take
-    const totalFormattedChars = allMemories.reduce(
-        (sum: number, m: any) => sum + formatMemoryLine(m).length, 0
+    // Compute total formatted token count to decide which path to take
+    const totalFormattedTokens = countTokens(
+        allMemories.map(m => formatMemoryLine(m)).join('\n')
     );
 
     let selectedCount = 0;
     const totalCount = allMemories.length;
     let domainNames: string[] = [];
 
-    if (totalFormattedChars <= budgetWithTolerance) {
+    if (totalFormattedTokens <= budgetWithTolerance) {
         // Path A: Everything fits — use deterministic formatter
-        const result = buildDeterministicMemories(allMemories, maxMemoryChars);
+        const result = buildDeterministicMemories(allMemories, memoryBudget);
         lines.push(result.text);
         selectedCount = result.selectedCount;
         domainNames = result.domainNames;
     } else {
-        // Check for cached summary
+        // Check for cached summary — always prefer summary over truncated deterministic,
+        // since a complete summary of all memories beats showing a fraction of them
         const summaryState = getProjectSummaryState(project.id);
-        const summaryFits = summaryState.summary
-            && summaryState.summary.length <= budgetWithTolerance;
 
-        if (summaryFits) {
+        if (summaryState.summary) {
             // Path B: Use cached LLM summary
             lines.push('\n## Project Summary');
             lines.push('> Below is a synthesis of all memories for this project. References like (#123, #456)');
@@ -134,23 +134,24 @@ export function buildStartupContext(projectPath: string): string {
             domainNames = Object.keys(byDomain).sort();
         } else {
             // Path C: Fallback to deterministic (truncated)
-            const result = buildDeterministicMemories(allMemories, maxMemoryChars);
+            const result = buildDeterministicMemories(allMemories, memoryBudget);
             lines.push(result.text);
             selectedCount = result.selectedCount;
             domainNames = result.domainNames;
         }
     }
 
-    // ── Tags section (unchanged) ──
-    let tagChars = 0;
-    const maxTagChars = getConfig().context.tagsTokenBudget * CHARS_PER_TOKEN;
+    // ── Tags section ──
+    let tagTokens = 0;
+    const maxTagTokens = getConfig().context.tagsTokenBudget;
     const selectedTags: string[] = [];
 
     for (const t of tags) {
         const entry = `${t.tag}(${t.count})`;
-        if (tagChars + entry.length + 2 > maxTagChars) break;
+        const entryTokens = countTokens(entry + ', ');
+        if (tagTokens + entryTokens > maxTagTokens) break;
         selectedTags.push(entry);
-        tagChars += entry.length + 2;
+        tagTokens += entryTokens;
     }
 
     if (selectedTags.length > 0) {

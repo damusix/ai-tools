@@ -8,4 +8,5 @@ export default defineConfig({
     clean: true,
     sourcemap: true,
     external: ['better-sqlite3'],
+    noExternal: ['js-tiktoken'],
 });

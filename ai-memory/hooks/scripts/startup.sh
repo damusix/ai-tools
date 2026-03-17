@@ -17,7 +17,7 @@ BASE="http://localhost:$PORT"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 # Run setup diagnostics (cascading: install → rebuild native → build)
-CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PLUGIN_ROOT/scripts/setup.sh" 2>&1 || {
+CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PLUGIN_ROOT/scripts/setup.sh" >>"$HOOK_LOG" 2>&1 || {
     echo '{"systemMessage": "[ai-memory] Setup failed. Check that node, pnpm, and sqlite3 are installed."}'
     exit 0
 }

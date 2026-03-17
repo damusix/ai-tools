@@ -115,7 +115,6 @@ export async function generateSummary(
     const memories = getMemoriesForHashing(projectId);
     const config = getConfig();
     const budget = config.context.memoryTokenBudget;
-    const charBudget = budget * 4;
 
     // Look up project path for CLAUDE.md
     const db = getDb();
@@ -145,7 +144,7 @@ export async function generateSummary(
 
             prompt = loadPrompt('summarize-full', {
                 TOKEN_BUDGET: String(budget),
-                CHAR_BUDGET: String(charBudget),
+                TOKEN_BUDGET: String(budget),
                 MEMORIES: memoriesJson,
                 CLAUDE_MD_SECTION: claudeMdSection,
                 PREVIOUS_SUMMARY_SECTION: prevSection,
@@ -169,7 +168,7 @@ export async function generateSummary(
 
             prompt = loadPrompt('summarize-incremental', {
                 TOKEN_BUDGET: String(budget),
-                CHAR_BUDGET: String(charBudget),
+                TOKEN_BUDGET: String(budget),
                 EXISTING_SUMMARY: state.summary,
                 DELTA_TYPE_LABEL: deltaType,
                 DELTA_MEMORIES: JSON.stringify(

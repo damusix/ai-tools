@@ -29,6 +29,7 @@
         "better-sqlite3": "12.6.2",
         "better-sse": "0.16.1",
         "hono": "4.12.2",
+        "js-tiktoken": "^1.0.21",
         "remark": "^15.0.1",
         "remark-directive": "^4.0.0",
         "remark-gfm": "^4.0.1",

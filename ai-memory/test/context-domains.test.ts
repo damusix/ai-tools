@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getOrCreateProject, insertMemory, updateProjectSummary } from '../src/db.js';
 import { buildStartupContext } from '../src/context.js';
+import { loadConfig } from '../src/config.js';
 import { join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,8 @@ beforeEach(() => {
     TEST_DIR = mkdtempSync(join(tmpdir(), 'ai-memory-context-'));
     TEST_DB = join(TEST_DIR, 'test.db');
     initDb(TEST_DB);
+    // Reset config to defaults (budget=1000 tokens) so tests don't depend on user config
+    loadConfig(join(TEST_DIR, 'nonexistent.yaml'));
 });
 
 afterEach(() => {
@@ -92,13 +95,14 @@ describe('summary-based context injection', () => {
         expect(context).not.toContain('### Frontend');
     });
 
-    it('falls back to deterministic when summary exceeds budget', () => {
+    it('uses summary even when it exceeds memory token budget', () => {
         const proj = getOrCreateProject('test-oversized');
-        for (let i = 0; i < 30; i++) {
+        // Use 60 long memories to ensure they exceed the default 1200 token tolerance
+        for (let i = 0; i < 60; i++) {
             insertMemory(
                 proj.id,
-                `Detailed memory ${i} with substantial content for budget testing purposes and architectural descriptions.`,
-                `tag${i}`,
+                `Detailed memory ${i} with substantial content for budget testing purposes and architectural descriptions that span multiple sentences about the system design.`,
+                `tag${i},architecture,design`,
                 'fact',
                 3,
                 '',
@@ -106,22 +110,24 @@ describe('summary-based context injection', () => {
             );
         }
 
-        // Store an oversized summary (way over the 1000 token / 4000 char budget)
-        const hugeSummary = 'x'.repeat(6000);
-        updateProjectSummary(proj.id, hugeSummary, 'hash', '{}', 0);
+        // Store a large summary — should still be preferred over truncated deterministic
+        const largeSummary = 'This is a large summary. '.repeat(200);
+        updateProjectSummary(proj.id, largeSummary, 'hash', '{}', 0);
 
         const context = buildStartupContext('test-oversized');
-        // Should fall back to deterministic since summary is too large
-        expect(context).not.toContain('Project Summary');
+        // Summary always preferred over showing a fraction of memories
+        expect(context).toContain('Project Summary');
+        expect(context).toContain('This is a large summary.');
     });
 
     it('falls back to deterministic when no summary exists yet', () => {
         const proj = getOrCreateProject('test-nosummary');
-        for (let i = 0; i < 30; i++) {
+        // Use 60 long memories to exceed budget
+        for (let i = 0; i < 60; i++) {
             insertMemory(
                 proj.id,
-                `Another detailed memory ${i} with enough content to push past the token budget threshold for deterministic formatting.`,
-                `tag${i}`,
+                `Another detailed memory ${i} with enough content to push past the token budget threshold for deterministic formatting and architectural decisions.`,
+                `tag${i},architecture`,
                 'fact',
                 3,
                 '',
