@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.1
+
+### Features
+
+- empty project cleanup, bulk delete, keyboard shortcuts, and project display filtering
+
+### Bug Fixes
+
+- hook JSON parsing and tiktoken-based token counting
+
 ## 1.2.0
 
 ### Features
