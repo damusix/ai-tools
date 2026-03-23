@@ -20,7 +20,7 @@ import {
     getRepoRoot,
 } from "../lib/plugins.js";
 import { syncVersions } from "../lib/sync.js";
-import { getGitLog, getVersionTags, groupCommitsByVersion, renderChangelog } from "../lib/changelog.js";
+import { getGitLog, getVersionTags, groupCommitsByVersion, renderChangelog, getRepoUrl } from "../lib/changelog.js";
 import type { BumpType } from "../types.js";
 
 const VALID_BUMPS: Record<string, true> = { patch: true, minor: true, major: true };
@@ -83,7 +83,7 @@ function runFlagMode(positionalArgs: string[]) {
         const commits = getGitLog(repoRoot, pluginDir);
         const versionTags = getVersionTags(repoRoot, plugin.name);
         const groups = groupCommitsByVersion(commits, versionTags, newVersion);
-        const changelog = renderChangelog(groups);
+        const changelog = renderChangelog(groups, getRepoUrl(repoRoot));
         const changelogPath = join(pluginDir, "CHANGELOG.md");
         writeFileSync(changelogPath, changelog);
         console.log(`  Generated ${changelogPath}`);
@@ -207,7 +207,7 @@ async function runInteractive() {
                 const commits = getGitLog(repoRoot, pluginDir);
                 const tags = getVersionTags(repoRoot, plugin.name);
                 const groups = groupCommitsByVersion(commits, tags, newVersion);
-                const changelog = renderChangelog(groups);
+                const changelog = renderChangelog(groups, getRepoUrl(repoRoot));
                 const changelogPath = join(pluginDir, "CHANGELOG.md");
                 writeFileSync(changelogPath, changelog);
                 allFilesToStage.push(changelogPath);

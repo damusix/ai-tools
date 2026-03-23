@@ -1,4 +1,4 @@
-import type { ParsedCommit, VersionGroup, GitLogEntry } from "../types.js";
+import type { ParsedCommit, VersionGroup, GitLogEntry, ChangelogItem } from "../types.js";
 
 const CONVENTIONAL_RE = /^(\w+)(\(([^)]+)\))?(!)?:\s+(.+)$/;
 const INCLUDED_TYPES: Record<string, true> = { feat: true, fix: true };
@@ -22,6 +22,7 @@ export function parseCommit(hash: string, subject: string, body?: string): Parse
         type,
         scope,
         description,
+        body: body?.trim() || null,
         breaking,
     };
 }
@@ -57,16 +58,18 @@ export function groupCommitsByVersion(
         // Only add content for conventional commits
         if (!entry.commit) continue;
 
+        const item: ChangelogItem = { hash: entry.hash, description: entry.commit.description, body: entry.commit.body };
+
         if (entry.commit.breaking) {
-            current.breaking.push(entry.commit.description);
+            current.breaking.push(item);
         }
 
         // Breaking changes only appear in the Breaking Changes section
         if (!entry.commit.breaking) {
             if (entry.commit.type === "feat") {
-                current.features.push(entry.commit.description);
+                current.features.push(item);
             } else if (entry.commit.type === "fix") {
-                current.fixes.push(entry.commit.description);
+                current.fixes.push(item);
             }
         }
     }
@@ -79,7 +82,41 @@ export function groupCommitsByVersion(
     return groups;
 }
 
-export function renderChangelog(groups: VersionGroup[]): string {
+function renderItem(item: ChangelogItem, repoUrl: string | null): string[] {
+    const shortHash = item.hash.slice(0, 7);
+    const hashRef = repoUrl
+        ? `[#${shortHash}](${repoUrl}/commit/${item.hash})`
+        : `#${shortHash}`;
+    const lines: string[] = [`- **${item.description}** ${hashRef}`];
+    if (item.body) {
+        for (const line of item.body.split("\n")) {
+            const trimmed = line.trimEnd();
+            if (!trimmed) continue;
+            if (/^\s*[-*]/.test(trimmed)) {
+                lines.push(`  - ${trimmed.replace(/^\s*[-*]\s*/, '')}`);
+            } else if (/^\w.*:$/.test(trimmed)) {
+                lines.push(`  - **${trimmed}**`);
+            } else {
+                lines.push(`  ${trimmed}`);
+            }
+        }
+    }
+    return lines;
+}
+
+export function getRepoUrl(repoRoot: string): string | null {
+    const result = Bun.spawnSync(["git", "remote", "get-url", "origin"], { cwd: repoRoot });
+    const url = result.stdout.toString().trim();
+    if (!url) return null;
+    // Convert git@github.com:user/repo.git or https://github.com/user/repo.git to https://github.com/user/repo
+    const sshMatch = url.match(/git@github\.com:(.+?)(?:\.git)?$/);
+    if (sshMatch) return `https://github.com/${sshMatch[1]}`;
+    const httpsMatch = url.match(/https:\/\/github\.com\/(.+?)(?:\.git)?$/);
+    if (httpsMatch) return `https://github.com/${httpsMatch[1]}`;
+    return null;
+}
+
+export function renderChangelog(groups: VersionGroup[], repoUrl: string | null = null): string {
     const lines: string[] = ["# Changelog", ""];
 
     for (const group of groups) {
@@ -87,20 +124,17 @@ export function renderChangelog(groups: VersionGroup[]): string {
 
         if (group.breaking.length) {
             lines.push("### Breaking Changes", "");
-            for (const item of group.breaking) lines.push(`- ${item}`);
-            lines.push("");
+            for (const item of group.breaking) lines.push(...renderItem(item, repoUrl));
         }
 
         if (group.features.length) {
             lines.push("### Features", "");
-            for (const item of group.features) lines.push(`- ${item}`);
-            lines.push("");
+            for (const item of group.features) lines.push(...renderItem(item, repoUrl));
         }
 
         if (group.fixes.length) {
             lines.push("### Bug Fixes", "");
-            for (const item of group.fixes) lines.push(`- ${item}`);
-            lines.push("");
+            for (const item of group.fixes) lines.push(...renderItem(item, repoUrl));
         }
     }
 

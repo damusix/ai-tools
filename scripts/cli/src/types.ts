@@ -13,14 +13,21 @@ export interface ParsedCommit {
     type: string;
     scope: string | null;
     description: string;
+    body: string | null;
     breaking: boolean;
+}
+
+export interface ChangelogItem {
+    hash: string;
+    description: string;
+    body: string | null;
 }
 
 export interface VersionGroup {
     version: string;
-    features: string[];
-    fixes: string[];
-    breaking: string[];
+    features: ChangelogItem[];
+    fixes: ChangelogItem[];
+    breaking: ChangelogItem[];
 }
 
 export interface GitLogEntry {
