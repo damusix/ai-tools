@@ -138,6 +138,8 @@ These tools are available to Claude during your session:
 | `list_domains`        | See all domains and their memory counts                              |
 | `list_projects`       | See all tracked projects                                             |
 | `transfer_project`    | Move memories and observations from one project path to another      |
+| `rescan_project_architecture` | Force rescan of project tree/manifests and regenerate architecture summary |
+| `scan_project_architecture`   | Deterministic scan only (tree + manifests + signals), no LLM calls        |
 
 ### Full-Text Search
 
@@ -171,6 +173,21 @@ A worker polls every 5 seconds:
 3. **Cleanup** — After synthesis, runs an LLM-based cleanup pass that removes junk observations (git noise, build output) and redundant or superseded memories.
 4. **TTL purge** — Deletes processed observations older than 14 days. Their value has already been absorbed into memories.
 5. **Strike counter** — Observations that get fed to synthesis but repeatedly ignored get a strike. After 3 strikes (3 synthesis runs where the observation was available but unused), the observation is auto-deleted.
+
+### Architecture Snapshot
+
+ai-memory automatically scans each project's directory to build a deterministic snapshot of its structure, tech stacks, and manifests. This gives Claude immediate physical context about the project — no conversation history needed.
+
+**What gets scanned:**
+
+- **Directory tree** via `tree-node-cli` (depth-bounded, respects `.gitignore`)
+- **Manifest files** — `package.json`, `composer.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `pom.xml`, `Dockerfile`, and [many more](src/architecture/scan.ts)
+- **Framework signals** — regex-based detection for Next.js, Laravel, Django, Rails, .NET, Vue, Svelte, Angular, Phoenix, and others
+- **CI workflows** — `.github/workflows` filenames
+
+The raw facts are sent to Claude Haiku to produce `architecture_full` (detailed interpretation) and `architecture_summary` (token-capped, injected at session start before memories).
+
+**Rescanning:** Happens automatically when the filesystem fingerprint changes or the scan interval elapses (default: 7 days). Force a rescan with the `rescan_project_architecture` MCP tool, or run a cheap deterministic-only scan (no LLM) with `scan_project_architecture`.
 
 ### Context Injection Budget
 
@@ -237,6 +254,12 @@ worker:
 context:
     memoryTokenBudget: 1000
     tagTokenBudget: 200
+
+architecture:
+    enabled: true
+    summaryTokenBudget: 500
+    scanIntervalDays: 7
+    signalsMode: regex # regex | llm | both
 
 api:
     defaultLimit: 50

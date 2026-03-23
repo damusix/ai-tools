@@ -1,6 +1,6 @@
 ---
 name: memory-management
-description: This skill should be used when saving memories, searching for past context, remembering decisions, forgetting memories, or managing the memory store. Trigger phrases include "remember this", "save a memory", "what did we decide about", "search memories", "forget this", "list tags". Guides effective use of ai-memory MCP tools (save_memory, search_memories, list_tags, delete_memory) and slash commands (/remember, /forget).
+description: This skill should be used when saving memories, searching for past context, remembering decisions, forgetting memories, or managing the memory store. Trigger phrases include "remember this", "save a memory", "what did we decide about", "search memories", "forget this", "list tags", "rescan architecture". Guides effective use of ai-memory MCP tools (save_memory, search_memories, list_tags, delete_memory, rescan_project_architecture) and slash commands (/remember, /forget).
 version: 0.1.0
 ---
 
@@ -18,6 +18,7 @@ version: 0.1.0
 | `list_tags`          | List all tags with usage counts      |
 | `list_domains`       | List all domains with usage counts   |
 | `delete_memory`      | Delete a memory by ID                |
+| `rescan_project_architecture` | Refresh tree + manifest snapshot for session context |
 | `/remember`          | Slash command to save a memory       |
 | `/forget`            | Slash command to find and delete     |
 

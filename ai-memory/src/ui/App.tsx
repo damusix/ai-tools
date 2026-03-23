@@ -11,6 +11,8 @@ import TransferModal from './components/TransferModal';
 import Icon from './components/Icon';
 import BrandLogo from './components/BrandLogo';
 import MemoryDetailModal from './components/MemoryDetailModal';
+import ArchitectureModal from './components/ArchitectureModal';
+import { Tooltip } from './components/Tooltip';
 import { sse, listen } from './sse';
 
 export type Memory = {
@@ -43,6 +45,13 @@ export type Project = {
     icon: string;
     description: string;
     summary: string;
+    architecture_summary: string;
+    architecture_facts: string;
+    architecture_full: string;
+    architecture_scanned_at: string;
+    git_root: string;
+    git_url: string;
+    consolidate: string;
     created_at: string;
     observation_count: number;
     memory_count: number;
@@ -65,6 +74,7 @@ const COLLAPSED_PROJECTS_KEY = 'ai-memory:collapsed-projects';
 const COLLAPSED_DOMAINS_KEY = 'ai-memory:collapsed-domains';
 const COLLAPSED_CATEGORIES_KEY = 'ai-memory:collapsed-categories';
 const COLLAPSED_SUMMARIES_KEY = 'ai-memory:collapsed-summaries';
+const COLLAPSED_ARCHITECTURE_KEY = 'ai-memory:collapsed-architecture';
 
 export const shortPath = (p: string) =>
     p === '_global' ? 'global' : p.replace(/^\/(?:Users|home)\/[^/]+\//, '~/');
@@ -79,6 +89,7 @@ const App: Component = () => {
     const [toast, setToast] = createSignal('');
     const [restarting, setRestarting] = createSignal(false);
     const [cleaningUp, setCleaningUp] = createSignal(false);
+    const [consolidating, setConsolidating] = createSignal(false);
     const [logsOpen, setLogsOpen] = createSignal(false);
     const [helpOpen, setHelpOpen] = createSignal(false);
     const [settingsOpen, setSettingsOpen] = createSignal(false);
@@ -276,11 +287,44 @@ const App: Component = () => {
         setCollapsedCategories(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    // Bulk collapse/expand helpers
+    const collapseAllProjects = (collapse: boolean) => {
+        const groups = groupedMemories();
+        const map: Record<string, boolean> = {};
+        for (const g of groups) if (g.project !== '_') map[g.project] = collapse;
+        setCollapsedProjects(collapse ? map : {});
+    };
+    const collapseAllDomainsInProject = (projectKey: string, collapse: boolean) => {
+        const groups = groupedMemories();
+        const proj = groups.find(g => g.project === projectKey);
+        if (!proj) return;
+        setCollapsedDomains(prev => {
+            const next = { ...prev };
+            for (const d of proj.domains) next[`${projectKey}:${d.domain}`] = collapse;
+            return collapse ? next : Object.fromEntries(Object.entries(next).filter(([k]) => !k.startsWith(`${projectKey}:`)));
+        });
+    };
+    const collapseAllCategoriesInDomain = (domKey: string, collapse: boolean) => {
+        const groups = groupedMemories();
+        for (const proj of groups) {
+            for (const dom of proj.domains) {
+                const dk = `${proj.project}:${dom.domain}`;
+                if (dk !== domKey) continue;
+                setCollapsedCategories(prev => {
+                    const next = { ...prev };
+                    for (const cat of dom.categories) next[`${dk}:${cat.category}`] = collapse;
+                    return collapse ? next : Object.fromEntries(Object.entries(next).filter(([k]) => !k.startsWith(`${dk}:`)));
+                });
+            }
+        }
+    };
+
     // Persist collapse state to localStorage
     createEffect(() => localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify(collapsedProjects())));
     createEffect(() => localStorage.setItem(COLLAPSED_DOMAINS_KEY, JSON.stringify(collapsedDomains())));
     createEffect(() => localStorage.setItem(COLLAPSED_CATEGORIES_KEY, JSON.stringify(collapsedCategories())));
     createEffect(() => localStorage.setItem(COLLAPSED_SUMMARIES_KEY, JSON.stringify(collapsedSummaries())));
+    createEffect(() => localStorage.setItem(COLLAPSED_ARCHITECTURE_KEY, JSON.stringify(collapsedArchitecture())));
 
     const selectProject = (path: string) => {
         setProject(path);
@@ -319,6 +363,18 @@ const App: Component = () => {
         } catch {
             showToast('Cleanup failed');
         }
+    };
+
+    const handleConsolidate = async () => {
+        setConsolidating(true);
+        try {
+            await fetch('/api/consolidate', { method: 'POST' });
+            showToast('Consolidation complete');
+            refresh();
+        } catch {
+            showToast('Consolidation failed');
+        }
+        setConsolidating(false);
     };
 
     const handleBatchDelete = async (projectIds: number[]) => {
@@ -477,10 +533,72 @@ const App: Component = () => {
         setGeneratingSummary(prev => ({ ...prev, [projectPath]: false }));
     };
 
+    // ── Architecture state ──
+    const projectArchitectureMap = createMemo(() => {
+        const map: Record<string, { summary: string; facts: string; full: string; scannedAt: string }> = {};
+        for (const p of projects() || []) {
+            if (p.architecture_scanned_at) {
+                map[p.path] = {
+                    summary: p.architecture_summary,
+                    facts: p.architecture_facts,
+                    full: p.architecture_full,
+                    scannedAt: p.architecture_scanned_at,
+                };
+            }
+        }
+        return map;
+    });
+
+    const [collapsedArchitecture, setCollapsedArchitecture] = createSignal<Record<string, boolean>>(
+        JSON.parse(localStorage.getItem(COLLAPSED_ARCHITECTURE_KEY) || '{}')
+    );
+    const toggleArchitecture = (key: string) => {
+        setCollapsedArchitecture(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const [generatingArchitecture, setGeneratingArchitecture] = createSignal<Record<string, boolean>>({});
+    const triggerArchitectureScan = async (projectPath: string) => {
+        const proj = (projects() || []).find((p: Project) => p.path === projectPath);
+        if (!proj) return;
+        setGeneratingArchitecture(prev => ({ ...prev, [projectPath]: true }));
+        try {
+            const res = await fetch(`/api/projects/${proj.id}/architecture`, { method: 'POST' });
+            if (res.ok) {
+                showToast('Architecture scan complete');
+                refresh();
+            } else {
+                showToast('Architecture scan failed');
+            }
+        } catch {
+            showToast('Architecture scan failed');
+        }
+        setGeneratingArchitecture(prev => ({ ...prev, [projectPath]: false }));
+    };
+
+    const [architectureModalPath, setArchitectureModalPath] = createSignal<string | null>(null);
+
+    const setConsolidate = async (projectId: number, value: '' | 'yes' | 'no') => {
+        try {
+            const res = await fetch(`/api/projects/${projectId}/consolidate`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ consolidate: value }),
+            });
+            if (res.ok) {
+                showToast(`Consolidation set to ${value || 'default'}`);
+                refresh();
+            } else {
+                showToast('Failed to update consolidation setting');
+            }
+        } catch {
+            showToast('Failed to update consolidation setting');
+        }
+    };
+
     const [memories] = createResource(
         () => ({ project: project(), key: refreshKey() }),
         ({ project: p }) => {
-            const qs = p ? `?project=${encodeURIComponent(p)}&limit=100` : '?limit=100';
+            const qs = p ? `?project=${encodeURIComponent(p)}&limit=0` : '?limit=0';
             return api<Memory[]>('/api/memories' + qs);
         },
     );
@@ -488,7 +606,7 @@ const App: Component = () => {
     const [observations] = createResource(
         () => ({ project: project(), key: refreshKey() }),
         ({ project: p }) => {
-            const qs = p ? `?project=${encodeURIComponent(p)}&limit=100` : '?limit=100';
+            const qs = p ? `?project=${encodeURIComponent(p)}&limit=0` : '?limit=0';
             return api<Observation[]>('/api/observations' + qs);
         },
     );
@@ -579,15 +697,17 @@ const App: Component = () => {
 
     const initialLoad = () => memories.loading && !memories.latest && observations.loading && !observations.latest;
 
-    const InfoBtn: Component<{ topic: string }> = (p) => (
-        <button
-            onClick={() => openHelp(p.topic)}
-            class="p-1 rounded text-neutral-600 hover:text-[#d77757] transition-colors"
-            title="Help"
-        >
-            <Icon name="info" size={13} />
-        </button>
-    );
+    const InfoBtn: Component<{ topic: string; hint?: string }> = (p) => {
+        const btn = (
+            <button
+                onClick={() => openHelp(p.topic)}
+                class="p-1 rounded text-neutral-600 hover:text-[#d77757] transition-colors"
+            >
+                <Icon name="info" size={13} />
+            </button>
+        );
+        return p.hint ? <Tooltip text={p.hint}>{btn}</Tooltip> : btn;
+    };
 
     return (
         <div class="max-w-[1400px] mx-auto flex flex-col h-screen">
@@ -611,13 +731,7 @@ const App: Component = () => {
                         </a>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button
-                            onClick={() => openHelp('about')}
-                            class="px-2 py-1.5 rounded text-neutral-500 hover:text-[#d77757] transition-colors flex items-center"
-                            title="Help"
-                        >
-                            <Icon name="info" size={15} />
-                        </button>
+                        <InfoBtn topic="about" hint="How ai-memory works and what it does." />
                         <div ref={menuRef} class="relative">
                             <button
                                 onClick={() => setMenuOpen(v => !v)}
@@ -628,6 +742,9 @@ const App: Component = () => {
                             </button>
                             <Show when={menuOpen()}>
                                 <div class="absolute right-0 top-[calc(100%+4px)] z-50 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg overflow-hidden">
+                                    <div class="px-3 py-1 pt-1.5">
+                                        <span class="text-[9px] font-bold uppercase tracking-wider text-neutral-600">Views</span>
+                                    </div>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
                                         onClick={() => { openSettings(); setMenuOpen(false); }}
@@ -644,12 +761,24 @@ const App: Component = () => {
                                         Logs
                                         <span class="kbd ml-auto">&#8984;J</span>
                                     </button>
+                                    <div class="border-t border-neutral-700/50" />
+                                    <div class="px-3 py-1">
+                                        <span class="text-[9px] font-bold uppercase tracking-wider text-neutral-600">Actions</span>
+                                    </div>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors"
                                         onClick={() => { openTransfer(); setMenuOpen(false); }}
                                     >
                                         <Icon name="transfer" size={13} />
                                         Merge projects
+                                    </button>
+                                    <button
+                                        class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                                        disabled={consolidating()}
+                                        onClick={() => { handleConsolidate(); setMenuOpen(false); }}
+                                    >
+                                        <i class={`fa-solid ${consolidating() ? 'fa-spinner fa-spin' : 'fa-code-branch'}`} style="font-size: 13px"></i>
+                                        {consolidating() ? 'Consolidating...' : 'Merge subfolders'}
                                     </button>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50"
@@ -667,6 +796,9 @@ const App: Component = () => {
                                         Purge empty projects
                                     </button>
                                     <div class="border-t border-neutral-700/50" />
+                                    <div class="px-3 py-1">
+                                        <span class="text-[9px] font-bold uppercase tracking-wider text-neutral-600">Server</span>
+                                    </div>
                                     <button
                                         class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-yellow-400 hover:bg-yellow-900/20 transition-colors disabled:opacity-50"
                                         disabled={restarting()}
@@ -728,7 +860,7 @@ const App: Component = () => {
                             <Icon name="eye" size={14} class="text-purple-400" />
                             Observations
                             <span class="text-xs text-purple-300/70">({stats()?.observations ?? 0})</span>
-                            <InfoBtn topic="observations" />
+                            <InfoBtn topic="observations" hint="Raw facts extracted from your sessions before synthesis into memories." />
                         </h2>
                         <Show
                             when={(observations()?.length ?? 0) > 0}
@@ -785,6 +917,26 @@ const App: Component = () => {
 
                     {/* Memories main panel */}
                     <main class="flex-1 overflow-y-auto p-4">
+                        <Show when={(memories()?.length ?? 0) > 0 && searchResults() === null}>
+                            <div class="flex justify-end mb-2 gap-1">
+                                <Tooltip text="Collapse all projects">
+                                    <button
+                                        onClick={() => collapseAllProjects(true)}
+                                        class="p-1 rounded text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800 transition-colors"
+                                    >
+                                        <i class="fa-solid fa-compress" style="font-size: 11px"></i>
+                                    </button>
+                                </Tooltip>
+                                <Tooltip text="Expand all projects">
+                                    <button
+                                        onClick={() => collapseAllProjects(false)}
+                                        class="p-1 rounded text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800 transition-colors"
+                                    >
+                                        <i class="fa-solid fa-expand" style="font-size: 11px"></i>
+                                    </button>
+                                </Tooltip>
+                            </div>
+                        </Show>
                         <Show when={searchResults() !== null} fallback={
                             <Show
                                 when={(memories()?.length ?? 0) > 0}
@@ -816,6 +968,22 @@ const App: Component = () => {
                                                             </span>
                                                             <Icon name={collapsedProjects()[projGroup.project] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500 shrink-0" />
                                                         </button>
+                                                        <Tooltip text="Collapse all domains">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); collapseAllDomainsInProject(projGroup.project, true); }}
+                                                                class="p-1 rounded text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800 opacity-0 group-hover/proj:opacity-100 transition-opacity shrink-0"
+                                                            >
+                                                                <i class="fa-solid fa-compress" style="font-size: 9px"></i>
+                                                            </button>
+                                                        </Tooltip>
+                                                        <Tooltip text="Expand all domains">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); collapseAllDomainsInProject(projGroup.project, false); }}
+                                                                class="p-1 rounded text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800 opacity-0 group-hover/proj:opacity-100 transition-opacity shrink-0"
+                                                            >
+                                                                <i class="fa-solid fa-expand" style="font-size: 9px"></i>
+                                                            </button>
+                                                        </Tooltip>
                                                         <Show when={projGroup.project !== '_global'}>
                                                             <button
                                                                 onClick={(e) => {
@@ -876,6 +1044,122 @@ const App: Component = () => {
                                                         </div>
                                                     );
                                                 })()}
+                                                {/* Architecture section */}
+                                                {(() => {
+                                                    const archPath = projGroup.project === '_' ? project() : projGroup.project;
+                                                    if (!archPath || archPath === '_global') return null;
+                                                    if (projGroup.project !== '_' && collapsedProjects()[projGroup.project]) return null;
+                                                    const archData = projectArchitectureMap()[archPath];
+                                                    const signals = (() => {
+                                                        if (!archData?.facts) return [];
+                                                        try {
+                                                            const parsed = JSON.parse(archData.facts);
+                                                            return [...new Set((parsed.signals || []).map((s: any) => s.kind) as string[])].sort();
+                                                        } catch {
+                                                            return [];
+                                                        }
+                                                    })();
+                                                    return (
+                                                        <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} px-4 py-2`}>
+                                                            <Show when={archData} fallback={
+                                                                <button
+                                                                    class="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-cyan-400 transition-colors disabled:opacity-40"
+                                                                    onClick={() => triggerArchitectureScan(archPath)}
+                                                                    disabled={generatingArchitecture()[archPath]}
+                                                                >
+                                                                    <i class={`fa-solid ${generatingArchitecture()[archPath] ? 'fa-spinner fa-spin' : 'fa-sitemap'}`} style="font-size: 10px"></i>
+                                                                    <span>{generatingArchitecture()[archPath] ? 'Scanning architecture...' : 'Scan Project Architecture'}</span>
+                                                                </button>
+                                                            }>
+                                                                <div class="flex items-center gap-1.5">
+                                                                    <button
+                                                                        class="flex items-center gap-1.5 text-xs text-cyan-500/80 hover:text-cyan-400 transition-colors flex-1"
+                                                                        onClick={() => toggleArchitecture(archPath)}
+                                                                    >
+                                                                        <i class="fa-solid fa-sitemap" style="font-size: 10px"></i>
+                                                                        <span class="font-medium">Architecture</span>
+                                                                        <Icon name={collapsedArchitecture()[archPath] ? 'chevron-right' : 'chevron-down'} size={10} class="text-cyan-500/60" />
+                                                                    </button>
+                                                                    <button
+                                                                        class="p-1 rounded text-neutral-600 hover:text-cyan-400 hover:bg-cyan-400/10 transition-colors disabled:opacity-40"
+                                                                        onClick={() => triggerArchitectureScan(archPath)}
+                                                                        disabled={generatingArchitecture()[archPath]}
+                                                                        title="Rescan architecture"
+                                                                    >
+                                                                        <i class={`fa-solid ${generatingArchitecture()[archPath] ? 'fa-spinner fa-spin' : 'fa-arrows-rotate'}`} style="font-size: 10px"></i>
+                                                                    </button>
+                                                                    <button
+                                                                        class="p-1 rounded text-neutral-600 hover:text-cyan-400 hover:bg-cyan-400/10 transition-colors"
+                                                                        onClick={() => setArchitectureModalPath(archPath)}
+                                                                        title="View full architecture details"
+                                                                    >
+                                                                        <i class="fa-solid fa-up-right-and-down-left-from-center" style="font-size: 10px"></i>
+                                                                    </button>
+                                                                </div>
+                                                                <Show when={!collapsedArchitecture()[archPath]}>
+                                                                    <div class="mt-2 text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap bg-neutral-900/40 rounded-lg p-3 border border-cyan-500/10">
+                                                                        {archData!.summary}
+                                                                    </div>
+                                                                    <Show when={signals.length > 0}>
+                                                                        <div class="mt-2 flex flex-wrap gap-1">
+                                                                            <For each={signals}>
+                                                                                {(signal: string) => (
+                                                                                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400/80">
+                                                                                        {signal}
+                                                                                    </span>
+                                                                                )}
+                                                                            </For>
+                                                                        </div>
+                                                                    </Show>
+                                                                </Show>
+                                                            </Show>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {/* Git info + consolidation */}
+                                                {(() => {
+                                                    const gitPath = projGroup.project === '_' ? project() : projGroup.project;
+                                                    if (!gitPath || gitPath === '_global') return null;
+                                                    if (projGroup.project !== '_' && collapsedProjects()[projGroup.project]) return null;
+                                                    const proj = (projects() || []).find((p: Project) => p.path === gitPath);
+                                                    if (!proj) return null;
+                                                    return (
+                                                        <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} px-4 py-2`}>
+                                                            <Show when={proj.git_root}>
+                                                                <div class="flex items-center gap-1.5 text-[10px] text-neutral-600 mb-1">
+                                                                    <i class="fa-solid fa-code-branch" style="font-size: 9px"></i>
+                                                                    <span class="font-mono truncate">{proj.git_root}</span>
+                                                                    <Show when={proj.git_url}>
+                                                                        <span class="text-neutral-700">·</span>
+                                                                        <span class="truncate">{proj.git_url}</span>
+                                                                    </Show>
+                                                                </div>
+                                                            </Show>
+                                                            <div class="flex items-center gap-2">
+                                                                <span class="text-[10px] text-neutral-500">Consolidation:</span>
+                                                                <InfoBtn topic="consolidation" hint="Auto-merge subfolder projects into the git root. Click for details." />
+                                                                <For each={[
+                                                                    { value: '' as const, label: 'Default' },
+                                                                    { value: 'yes' as const, label: 'Always' },
+                                                                    { value: 'no' as const, label: 'Never' },
+                                                                ]}>
+                                                                    {(opt) => (
+                                                                        <button
+                                                                            class={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                                                                                proj.consolidate === opt.value
+                                                                                    ? 'bg-cyan-500/15 text-cyan-400'
+                                                                                    : 'text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800'
+                                                                            }`}
+                                                                            onClick={() => setConsolidate(proj.id, opt.value)}
+                                                                        >
+                                                                            {opt.label}
+                                                                        </button>
+                                                                    )}
+                                                                </For>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                                 <Show when={projGroup.project === '_' || !collapsedProjects()[projGroup.project]}>
                                                     <div class={`${projGroup.project !== '_' ? 'border-t border-neutral-700/50' : ''} p-3 flex flex-col gap-3`}>
                                                         <For each={projGroup.domains}>
@@ -884,17 +1168,39 @@ const App: Component = () => {
                                                                 return (
                                                                     /* Domain box */
                                                                     <div class="rounded-lg border border-neutral-700/30 bg-neutral-800/30 overflow-hidden">
-                                                                        <button
-                                                                            class="w-full flex items-center justify-between py-2 px-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-800/60 transition-colors"
-                                                                            onClick={() => toggleDomain(domKey)}
-                                                                        >
-                                                                            <span class="capitalize flex items-center gap-1.5">
-                                                                                <i class={`fa-solid ${domainIconMap()[domGroup.domain] || 'fa-folder'}`} style="font-size: 14px"></i>
-                                                                                {domGroup.domain}
-                                                                                <span class="text-neutral-600 font-normal text-xs">({domGroup.categories.reduce((sum, c) => sum + c.memories.length, 0)})</span>
-                                                                            </span>
-                                                                            <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
-                                                                        </button>
+                                                                        <div class="flex items-center py-2 px-3 hover:bg-neutral-800/60 transition-colors group/dom">
+                                                                            <button
+                                                                                class="flex-1 flex items-center justify-between text-sm font-semibold text-neutral-200"
+                                                                                onClick={() => toggleDomain(domKey)}
+                                                                            >
+                                                                                <span class="capitalize flex items-center gap-1.5">
+                                                                                    <i class={`fa-solid ${domainIconMap()[domGroup.domain] || 'fa-folder'}`} style="font-size: 14px"></i>
+                                                                                    {domGroup.domain}
+                                                                                    <span class="text-neutral-600 font-normal text-xs">({domGroup.categories.reduce((sum, c) => sum + c.memories.length, 0)})</span>
+                                                                                </span>
+                                                                                <Icon name={collapsedDomains()[domKey] ? 'chevron-right' : 'chevron-down'} size={12} class="text-neutral-500" />
+                                                                            </button>
+                                                                            <Show when={domGroup.categories.length > 1}>
+                                                                                <div class="flex gap-0.5 ml-2 opacity-0 group-hover/dom:opacity-100 transition-opacity">
+                                                                                    <Tooltip text="Collapse categories">
+                                                                                        <button
+                                                                                            onClick={() => collapseAllCategoriesInDomain(domKey, true)}
+                                                                                            class="p-0.5 rounded text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800"
+                                                                                        >
+                                                                                            <i class="fa-solid fa-compress" style="font-size: 8px"></i>
+                                                                                        </button>
+                                                                                    </Tooltip>
+                                                                                    <Tooltip text="Expand categories">
+                                                                                        <button
+                                                                                            onClick={() => collapseAllCategoriesInDomain(domKey, false)}
+                                                                                            class="p-0.5 rounded text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800"
+                                                                                        >
+                                                                                            <i class="fa-solid fa-expand" style="font-size: 8px"></i>
+                                                                                        </button>
+                                                                                    </Tooltip>
+                                                                                </div>
+                                                                            </Show>
+                                                                        </div>
                                                                         <Show when={!collapsedDomains()[domKey]}>
                                                                             <div class="border-t border-neutral-700/30 p-3 flex flex-col gap-3">
                                                                                 <For each={domGroup.categories}>
@@ -1037,6 +1343,18 @@ const App: Component = () => {
                 onUpdate={handleMemoryUpdate}
                 showToast={showToast}
             />
+
+                <ArchitectureModal
+                    data={(() => {
+                        const path = architectureModalPath();
+                        if (!path) return null;
+                        const arch = projectArchitectureMap()[path];
+                        if (!arch) return null;
+                        return arch;
+                    })()}
+                    open={!!architectureModalPath()}
+                    onClose={() => setArchitectureModalPath(null)}
+                />
 
             <Show when={toast()}>
                 <div class="fixed bottom-4 right-4 bg-neutral-800 border border-neutral-600 text-neutral-200 text-sm px-4 py-2 rounded shadow-lg z-50">

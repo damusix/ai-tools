@@ -25,11 +25,14 @@ import {
     getProjectsWithStaleObservations,
     updateProjectMeta,
     deleteEmptyProjects,
+    getProjectArchitectureSummary,
 } from './db.js';
 import { broadcast } from './sse.js';
 import { log, error as logError } from './logger.js';
 import { getConfig } from './config.js';
 import { checkProjectSummaries } from './summary.js';
+import { checkArchitectureScans } from './architecture/pipeline.js';
+import { checkGitConsolidation } from './consolidation.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, 'prompts');
@@ -186,6 +189,13 @@ export function startWorker(): void {
             const summaryEvery = Math.max(1, Math.round(getConfig().worker.summary.checkIntervalMs / getConfig().worker.pollIntervalMs));
             if (pollCount % summaryEvery === 0) {
                 await checkProjectSummaries();
+            }
+            if (pollCount <= 1 || pollCount % 4 === 0) {
+                await checkArchitectureScans(pollCount);
+            }
+            const consolidateEvery = Math.max(1, Math.round(getConfig().projects.consolidateIntervalMs / getConfig().worker.pollIntervalMs));
+            if (pollCount <= 1 || pollCount % consolidateEvery === 0) {
+                await checkGitConsolidation();
             }
         } catch (err) {
             logError('worker', `Error: ${err}`);
@@ -358,10 +368,13 @@ async function cleanupWithLLM(projectId: number): Promise<{ observations: number
         const categories = listCategoriesRaw();
         const categoriesText = categories.map(c => `- ${c.name}: ${c.description}`).join('\n');
 
+        const architectureSummary = getProjectArchitectureSummary(projectId);
+
         const prompt = loadPrompt('cleanup', {
             OBSERVATIONS: JSON.stringify(observations, null, 2),
             MEMORIES: JSON.stringify(memories, null, 2),
             CATEGORIES: categoriesText,
+            ARCHITECTURE_SUMMARY: architectureSummary,
         });
 
         let result = '';

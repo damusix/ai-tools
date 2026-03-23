@@ -16,6 +16,17 @@ Tracks each distinct project directory that ai-memory has seen. A special `_glob
 | id | INTEGER | PRIMARY KEY AUTOINCREMENT | Internal identifier |
 | path | TEXT | UNIQUE NOT NULL | Absolute path to the project directory, or `_global` |
 | name | TEXT | NOT NULL | Display name, derived from the last path segment |
+| icon | TEXT | NOT NULL, default | Font Awesome icon class (dashboard) |
+| description | TEXT | NOT NULL, default '' | Short project description |
+| summary | TEXT | NOT NULL, default '' | Cached LLM synthesis of memories (large-context path) |
+| summary_hash | TEXT | NOT NULL, default '' | Memory-set hash for summary invalidation |
+| summary_snapshot | TEXT | NOT NULL, default '' | Per-memory content hashes at last summary |
+| summary_incremental_count | INTEGER | NOT NULL, default 0 | Incremental summary cycle counter |
+| architecture_facts | TEXT | NOT NULL, default '' | JSON: tree text, raw manifest snippets, CI filenames, signals |
+| architecture_full | TEXT | NOT NULL, default '' | Haiku prose interpretation of facts |
+| architecture_summary | TEXT | NOT NULL, default '' | Short summary injected first in session context; used in cleanup |
+| architecture_fingerprint | TEXT | NOT NULL, default '' | SHA-256 of deterministic facts subset for rescan gating |
+| architecture_scanned_at | TEXT | NOT NULL, default '' | ISO 8601 of last successful architecture scan |
 | created_at | TEXT | NOT NULL, default now | ISO 8601 timestamp of first encounter |
 
 
@@ -185,6 +196,7 @@ Migrations are idempotent and run on every `initDb()` call. They use `PRAGMA tab
 |-----------|-------------|-------|---------|
 | domain | domain TEXT FK → domains(name) | memories | Classify memories by development domain |
 | skipped_count | skipped_count INTEGER default 0 | observations | Track how many synthesis runs ignored this observation |
+| architecture_* | architecture_facts, architecture_full, architecture_summary, architecture_fingerprint, architecture_scanned_at | projects | Filesystem snapshot + LLM layers for session context and cleanup |
 
 
 ## Staleness Policies

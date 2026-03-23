@@ -136,6 +136,7 @@ Immediately after synthesis, the worker runs an LLM-based cleanup pass (`src/pro
 
 - The 200 most recent observations.
 - The 100 top memories (by importance).
+- The **project architecture summary** (when present): static repo facts already covered there can be dropped from memories, without removing decisions/patterns.
 
 The cleanup prompt tells Claude Haiku to identify and delete:
 
@@ -144,10 +145,16 @@ The cleanup prompt tells Claude Haiku to identify and delete:
 - **Redundant:** Duplicates or near-duplicates.
 - **Vague:** Observations too generic to be useful.
 - **Trivial:** Low-value items not worth keeping.
+- **Architecture-redundant:** Only when an architecture summary exists — trivial layout/stack duplicates of that snapshot.
 
 The LLM returns lists of observation IDs and memory IDs to delete, along with reasoning.
 
 **TTL purge.** On every poll cycle (not just after synthesis), the worker also runs a simple TTL check: any observation with `processed = 1` and `created_at` older than 14 days is deleted. These observations have already been absorbed into memories — their only remaining value was as an audit trail, and 14 days is enough for that.
+
+
+## 7b. Architecture snapshot (worker)
+
+On a subset of poll cycles, the worker rotates through non-`_global` projects and may run a **filesystem architecture scan** (`tree-node-cli` tree + raw manifest snippets + optional signal LLM + Haiku full/summary). A rescan runs when the deterministic **fingerprint** changes, when the **scan interval** has elapsed (default: 7 days), or when **`rescan_project_architecture`** / `POST /api/projects/:id/architecture` forces it. The short **`architecture_summary`** is injected **first** inside `<memory-context>` at session start (see `src/context.ts`).
 
 
 ## 8. Next Session Starts

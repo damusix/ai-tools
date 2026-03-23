@@ -26,6 +26,11 @@ describe('config', () => {
         expect(cfg.server.restartDelayMs).toBe(200);
         expect(cfg.api.defaultLimit).toBe(50);
         expect(cfg.api.logsDefaultLines).toBe(500);
+        expect(cfg.architecture.enabled).toBe(true);
+        expect(cfg.architecture.summaryTokenBudget).toBe(500);
+        expect(cfg.architecture.scanIntervalDays).toBe(7);
+        expect(cfg.architecture.signalsMode).toBe('regex');
+        expect(cfg.architecture.treeMaxDepth).toBe(5);
     });
 
     it('merges partial YAML with defaults', () => {

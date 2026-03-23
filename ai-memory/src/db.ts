@@ -216,6 +216,30 @@ function initSchema(db: Database.Database): void {
     if (!projectColNames['summary_incremental_count']) {
         db.exec("ALTER TABLE projects ADD COLUMN summary_incremental_count INTEGER NOT NULL DEFAULT 0");
     }
+    if (!projectColNames['architecture_facts']) {
+        db.exec("ALTER TABLE projects ADD COLUMN architecture_facts TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['architecture_full']) {
+        db.exec("ALTER TABLE projects ADD COLUMN architecture_full TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['architecture_summary']) {
+        db.exec("ALTER TABLE projects ADD COLUMN architecture_summary TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['architecture_fingerprint']) {
+        db.exec("ALTER TABLE projects ADD COLUMN architecture_fingerprint TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['architecture_scanned_at']) {
+        db.exec("ALTER TABLE projects ADD COLUMN architecture_scanned_at TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['git_root']) {
+        db.exec("ALTER TABLE projects ADD COLUMN git_root TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['git_url']) {
+        db.exec("ALTER TABLE projects ADD COLUMN git_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['consolidate']) {
+        db.exec("ALTER TABLE projects ADD COLUMN consolidate TEXT NOT NULL DEFAULT ''");
+    }
 
     // Seed default domains
     const insertDomainStmt = db.prepare('INSERT OR IGNORE INTO domains (name, description, icon) VALUES (?, ?, ?)');
@@ -238,6 +262,20 @@ function initSchema(db: Database.Database): void {
 }
 
 // ── Project queries ─────────────────────────────────────────────
+
+export function getProjectPathById(projectId: number): string | undefined {
+    const db = getDb();
+    const row = db.prepare('SELECT path FROM projects WHERE id = ?').get(projectId) as { path: string } | undefined;
+    return row?.path;
+}
+
+export function listArchitectureProjectIds(): { id: number; path: string }[] {
+    const db = getDb();
+    return db.prepare(`SELECT id, path FROM projects WHERE path != '_global' ORDER BY id`).all() as {
+        id: number;
+        path: string;
+    }[];
+}
 
 export function getOrCreateProject(projectPath: string): { id: number; path: string; name: string } {
     const db = getDb();
@@ -276,12 +314,124 @@ export function updateProjectMeta(projectId: number, icon: string, description: 
     db.prepare('UPDATE projects SET icon = ?, description = ? WHERE id = ?').run(icon, description, projectId);
 }
 
+export function getProjectArchitecture(projectId: number): {
+    facts: string;
+    full: string;
+    summary: string;
+    fingerprint: string;
+    scannedAt: string;
+} {
+    const db = getDb();
+    const row = db
+        .prepare(
+            `SELECT architecture_facts, architecture_full, architecture_summary, architecture_fingerprint, architecture_scanned_at
+             FROM projects WHERE id = ?`,
+        )
+        .get(projectId) as
+        | {
+              architecture_facts: string;
+              architecture_full: string;
+              architecture_summary: string;
+              architecture_fingerprint: string;
+              architecture_scanned_at: string;
+          }
+        | undefined;
+    return {
+        facts: row?.architecture_facts ?? '',
+        full: row?.architecture_full ?? '',
+        summary: row?.architecture_summary ?? '',
+        fingerprint: row?.architecture_fingerprint ?? '',
+        scannedAt: row?.architecture_scanned_at ?? '',
+    };
+}
+
+export function getProjectArchitectureSummary(projectId: number): string {
+    const db = getDb();
+    const row = db.prepare('SELECT architecture_summary FROM projects WHERE id = ?').get(projectId) as
+        | { architecture_summary: string }
+        | undefined;
+    return row?.architecture_summary ?? '';
+}
+
+export function updateProjectArchitecture(
+    projectId: number,
+    row: {
+        facts: string;
+        full: string;
+        summary: string;
+        fingerprint: string;
+        scannedAt: string;
+    },
+): void {
+    const db = getDb();
+    db.prepare(
+        `UPDATE projects SET architecture_facts = ?, architecture_full = ?, architecture_summary = ?,
+            architecture_fingerprint = ?, architecture_scanned_at = ? WHERE id = ?`,
+    ).run(row.facts, row.full, row.summary, row.fingerprint, row.scannedAt, projectId);
+}
+
+export function updateProjectGitInfo(projectId: number, gitRoot: string, gitUrl: string): void {
+    const db = getDb();
+    db.prepare('UPDATE projects SET git_root = ?, git_url = ? WHERE id = ?').run(gitRoot, gitUrl, projectId);
+}
+
+export function setProjectConsolidate(projectId: number, value: '' | 'yes' | 'no'): void {
+    const db = getDb();
+    db.prepare('UPDATE projects SET consolidate = ? WHERE id = ?').run(value, projectId);
+}
+
+export function listProjectsForConsolidation(): {
+    id: number; path: string; git_root: string; git_url: string; consolidate: string;
+}[] {
+    const db = getDb();
+    return db.prepare(
+        `SELECT id, path, git_root, git_url, consolidate FROM projects
+         WHERE path != '_global' AND (git_root = '' OR git_root != path)`
+    ).all() as any[];
+}
+
+export function consolidateProject(
+    sourceId: number,
+    targetId: number,
+    subpathTag: string,
+): { memories: number; observations: number } {
+    const db = getDb();
+    const merge = db.transaction(() => {
+        // Tag memories with subpath provenance
+        if (subpathTag) {
+            db.prepare(
+                `UPDATE memories SET tags = CASE
+                    WHEN tags = '' THEN ?
+                    ELSE tags || ',' || ?
+                 END
+                 WHERE project_id = ?`
+            ).run(subpathTag, subpathTag, sourceId);
+        }
+
+        // Move all records to target
+        db.prepare('UPDATE memories SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
+        db.prepare('UPDATE observations SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
+        db.prepare('UPDATE observation_queue SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
+        db.prepare('UPDATE memory_queue SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
+
+        const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(targetId) as any).c;
+        const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(targetId) as any).c;
+
+        db.prepare('DELETE FROM projects WHERE id = ?').run(sourceId);
+        return { memories: memCount, observations: obsCount };
+    });
+
+    return merge();
+}
+
 export function listProjects(): any[] {
     const db = getDb();
     return db
         .prepare(
             `
         SELECT p.id, p.path, p.name, p.icon, p.description, p.created_at, p.summary,
+            p.architecture_summary, p.architecture_facts, p.architecture_full, p.architecture_scanned_at,
+            p.git_root, p.git_url, p.consolidate,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
             (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
         FROM projects p

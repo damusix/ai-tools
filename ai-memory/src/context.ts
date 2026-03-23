@@ -1,4 +1,12 @@
-import { listMemories, listTags, getOrCreateProject, listDomainsRaw, listCategoriesRaw, getProjectSummaryState } from './db.js';
+import {
+    listMemories,
+    listTags,
+    getOrCreateProject,
+    listDomainsRaw,
+    listCategoriesRaw,
+    getProjectSummaryState,
+    getProjectArchitectureSummary,
+} from './db.js';
 import { log } from './logger.js';
 import { getConfig } from './config.js';
 import { countTokens } from './tokens.js';
@@ -100,6 +108,17 @@ export function buildStartupContext(projectPath: string): string {
 
     const lines: string[] = [];
     lines.push(`<memory-context project="${projectPath}">`);
+
+    if (getConfig().architecture.enabled) {
+
+        const archSummary = getProjectArchitectureSummary(project.id).trim();
+        if (archSummary) {
+
+            lines.push('\n## Project architecture');
+            lines.push('> Filesystem-derived snapshot (rescan via `rescan_project_architecture` MCP tool).\n');
+            lines.push(archSummary);
+        }
+    }
 
     // Compute total formatted token count to decide which path to take
     const totalFormattedTokens = countTokens(

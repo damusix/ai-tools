@@ -41,6 +41,9 @@ import {
     getProjectSummaryState,
     updateProjectSummary,
     getMemoriesForHashing,
+    getProjectArchitecture,
+    updateProjectArchitecture,
+    getProjectArchitectureSummary,
     deleteEmptyProjects,
     batchDeleteProjects,
 } from '../src/db.js';
@@ -533,6 +536,37 @@ describe('project summary state', () => {
         expect(state.summary).toBe('new');
         expect(state.summary_hash).toBe('h2');
         expect(state.summary_incremental_count).toBe(0);
+    });
+});
+
+describe('project architecture columns', () => {
+    it('getProjectArchitecture returns empty defaults', () => {
+        const proj = getOrCreateProject('/test/arch');
+        const arch = getProjectArchitecture(proj.id);
+        expect(arch.facts).toBe('');
+        expect(arch.full).toBe('');
+        expect(arch.summary).toBe('');
+        expect(arch.fingerprint).toBe('');
+        expect(arch.scannedAt).toBe('');
+        expect(getProjectArchitectureSummary(proj.id)).toBe('');
+    });
+
+    it('updateProjectArchitecture round-trips', () => {
+        const proj = getOrCreateProject('/test/arch2');
+        updateProjectArchitecture(proj.id, {
+            facts: '{"x":1}',
+            full: 'full text',
+            summary: 'short',
+            fingerprint: 'abc',
+            scannedAt: '2026-01-01T00:00:00Z',
+        });
+        const arch = getProjectArchitecture(proj.id);
+        expect(arch.facts).toBe('{"x":1}');
+        expect(arch.full).toBe('full text');
+        expect(arch.summary).toBe('short');
+        expect(arch.fingerprint).toBe('abc');
+        expect(arch.scannedAt).toBe('2026-01-01T00:00:00Z');
+        expect(getProjectArchitectureSummary(proj.id)).toBe('short');
     });
 });
 

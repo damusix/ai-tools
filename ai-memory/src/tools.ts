@@ -13,6 +13,7 @@ import {
     listCategories,
     transferProject,
 } from './db.js';
+import { runArchitectureScanForProject, runDeterministicScan } from './architecture/pipeline.js';
 import { log } from './logger.js';
 
 export function createMcpServer(): McpServer {
@@ -219,6 +220,103 @@ export function createMcpServer(): McpServer {
                     content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }],
                 };
             }
+        },
+    );
+
+    server.registerTool(
+        'rescan_project_architecture',
+        {
+            description:
+                'Rescan the project on disk (tree + raw manifest snippets) and regenerate architecture summary injected at session start and used during cleanup deduplication.',
+            inputSchema: z.object({
+                project: z
+                    .string()
+                    .optional()
+                    .describe("Absolute project path. Defaults to PWD. Cannot use '_global'."),
+                force: z
+                    .boolean()
+                    .optional()
+                    .describe('If true (default), always run; if false, respect fingerprint + scan interval gates.'),
+            }),
+        },
+        async ({ project, force }) => {
+            const projectPath = project || process.env.PWD || '_global';
+            if (projectPath === '_global') {
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                ok: false,
+                                error: 'Architecture scan applies to real project paths only, not _global.',
+                            }),
+                        },
+                    ],
+                };
+            }
+            const proj = getOrCreateProject(projectPath);
+            const doForce = force !== false;
+            const scanned = await runArchitectureScanForProject(proj.id, { force: doForce });
+            log('mcp', `rescan_project_architecture: project=${projectPath} force=${doForce} scanned=${scanned}`);
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify({ ok: true, scanned, project: projectPath, force: doForce }),
+                    },
+                ],
+            };
+        },
+    );
+
+    server.registerTool(
+        'scan_project_architecture',
+        {
+            description:
+                'Run the deterministic filesystem scan only (tree + raw manifests + regex signals + fingerprint). No LLM calls. Use rescan_project_architecture for the full pipeline with Haiku interpretation.',
+            inputSchema: z.object({
+                project: z
+                    .string()
+                    .optional()
+                    .describe("Absolute project path. Defaults to PWD. Cannot use '_global'."),
+            }),
+        },
+        async ({ project }) => {
+            const projectPath = project || process.env.PWD || '_global';
+            if (projectPath === '_global') {
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                ok: false,
+                                error: 'Architecture scan applies to real project paths only, not _global.',
+                            }),
+                        },
+                    ],
+                };
+            }
+            const proj = getOrCreateProject(projectPath);
+            const result = runDeterministicScan(proj.id);
+            log('mcp', `scan_project_architecture: project=${projectPath} result=${'error' in result ? result.error : 'ok'}`);
+            if ('error' in result) {
+                return {
+                    content: [{ type: 'text', text: JSON.stringify({ ok: false, error: result.error }) }],
+                };
+            }
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify({
+                            ok: true,
+                            fingerprint: result.fingerprint,
+                            changed: result.changed,
+                            facts: result.facts,
+                        }),
+                    },
+                ],
+            };
         },
     );
 

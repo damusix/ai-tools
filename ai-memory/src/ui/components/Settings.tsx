@@ -1,6 +1,7 @@
 import { type Component, createSignal, createEffect, createMemo, For, Show, onCleanup } from 'solid-js';
 import Overlay from './Overlay';
 import Icon from './Icon';
+import { Tooltip } from './Tooltip';
 import { ConfirmModal } from './Modal';
 import FA_CATEGORIES from '../fa-icons-data';
 
@@ -8,7 +9,7 @@ import FA_CATEGORIES from '../fa-icons-data';
 
 type TaxonomyItem = { name: string; description: string; icon: string; count: number };
 
-type FieldDef = { key: string; label: string; fallback: number; desc: string };
+type FieldDef = { key: string; label: string; fallback: number; desc: string; type?: 'number' | 'boolean' };
 type Section = { icon: string; label: string; fields: FieldDef[] };
 
 // ── Configuration sections ─────────────────────────────────────────────
@@ -47,6 +48,12 @@ const sections: Section[] = [
         icon: 'globe', label: 'API', fields: [
             { key: 'defaultLimit', label: 'Default Limit', fallback: 50, desc: 'default pagination limit' },
             { key: 'logsDefaultLines', label: 'Logs Default Lines', fallback: 500, desc: 'default log lines returned' },
+        ],
+    },
+    {
+        icon: 'code-branch', label: 'Projects', fields: [
+            { key: 'consolidateToGitRoot', label: 'Consolidate to Git Root', fallback: 0, desc: 'auto-merge subfolder projects into git root', type: 'boolean' },
+            { key: 'consolidateIntervalMs', label: 'Consolidation Interval', fallback: 60000, desc: 'ms between consolidation checks' },
         ],
     },
 ];
@@ -537,7 +544,7 @@ const Settings: Component<{
     createEffect(() => {
         if (props.open && props.initialTab) setTab(props.initialTab);
     });
-    const [config, setConfig] = createSignal<Record<string, number>>({});
+    const [config, setConfig] = createSignal<Record<string, number | boolean>>({});
     const [saving, setSaving] = createSignal(false);
     const [domains, setDomains] = createSignal<TaxonomyItem[]>([]);
     const [categories, setCategories] = createSignal<TaxonomyItem[]>([]);
@@ -572,7 +579,7 @@ const Settings: Component<{
         refreshTaxonomy();
     });
 
-    const updateField = (key: string, value: number) => {
+    const updateField = (key: string, value: number | boolean) => {
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 
@@ -707,13 +714,14 @@ const Settings: Component<{
                         </h2>
                         <div class="flex items-center gap-1">
                             <Show when={props.onHelp}>
-                                <button
-                                    onClick={props.onHelp}
-                                    class="text-neutral-500 hover:text-[#d77757] p-1 rounded hover:bg-neutral-800 transition-colors"
-                                    title="Help"
-                                >
-                                    <Icon name="info" size={14} />
-                                </button>
+                                <Tooltip text="Worker intervals, token budgets, and server config.">
+                                    <button
+                                        onClick={props.onHelp}
+                                        class="text-neutral-500 hover:text-[#d77757] p-1 rounded hover:bg-neutral-800 transition-colors"
+                                    >
+                                        <Icon name="info" size={14} />
+                                    </button>
+                                </Tooltip>
                             </Show>
                             <button
                                 onClick={props.onClose}
@@ -761,12 +769,25 @@ const Settings: Component<{
                                                 {(field) => (
                                                     <div>
                                                         <label class="block text-xs font-medium text-neutral-300 mb-1">{field.label}</label>
-                                                        <input
-                                                            type="number"
-                                                            value={config()[field.key] ?? field.fallback}
-                                                            onInput={(e) => updateField(field.key, Number(e.currentTarget.value))}
-                                                            class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-[#d77757] focus:outline-none transition-colors"
-                                                        />
+                                                        {field.type === 'boolean' ? (
+                                                            <button
+                                                                onClick={() => updateField(field.key, !config()[field.key])}
+                                                                class={`w-full px-2.5 py-1.5 text-xs rounded border transition-colors text-left ${
+                                                                    config()[field.key]
+                                                                        ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+                                                                        : 'bg-neutral-800 border-neutral-700 text-neutral-500'
+                                                                }`}
+                                                            >
+                                                                {config()[field.key] ? 'Enabled' : 'Disabled'}
+                                                            </button>
+                                                        ) : (
+                                                            <input
+                                                                type="number"
+                                                                value={(config()[field.key] as number) ?? field.fallback}
+                                                                onInput={(e) => updateField(field.key, Number(e.currentTarget.value))}
+                                                                class="w-full px-2.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 focus:border-[#d77757] focus:outline-none transition-colors"
+                                                            />
+                                                        )}
                                                         <p class="text-[10px] text-neutral-500 mt-0.5">{field.desc}</p>
                                                     </div>
                                                 )}

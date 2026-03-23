@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- filesystem architecture snapshot (`tree-node-cli` + raw manifests), Haiku summary injected before memories, cleanup uses architecture summary, worker rescan rotation, `rescan_project_architecture` MCP tool and `POST /api/projects/:id/architecture`
+
 ## 1.2.1
 
 ### Features

@@ -7,9 +7,13 @@ Delete items that are:
 - Too vague: so generic they provide no useful recall value
 - Trivial: not worth remembering long-term
 - Domain-redundant: multiple memories in the same domain covering overlapping topics (keep the stronger one)
+- Architecture-redundant: ONLY when PROJECT ARCHITECTURE SUMMARY below is non-empty — delete memories that **only** restate static repo layout, stack, or obvious directory facts **fully covered** by that summary. Never delete **decision**, **pattern**, **preference**, or **solution** items for architecture overlap unless they are true duplicates of another memory (same meaning), not merely related topics.
 
 Keep items that match any of these categories:
 {{CATEGORIES}}
+
+PROJECT ARCHITECTURE SUMMARY (may be empty — if empty, ignore architecture-redundant rule entirely):
+{{ARCHITECTURE_SUMMARY}}
 
 OBSERVATIONS:
 {{OBSERVATIONS}}

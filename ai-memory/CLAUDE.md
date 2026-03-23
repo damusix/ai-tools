@@ -18,7 +18,7 @@ src/
   app.ts          — HTTP routes (health, enqueue, context, CRUD APIs, SSE, dashboard)
   config.ts       — YAML config loader with Zod validation (~/.ai-memory/config.yaml)
   db.ts           — SQLite schema, migrations, all query functions
-  tools.ts        — MCP tool definitions (save_memory, search_memories, etc.)
+  tools.ts        — MCP tool definitions (save_memory, search_memories, rescan_project_architecture, etc.)
   worker.ts       — Background worker: extraction, synthesis, cleanup, staleness
   context.ts      — Builds the memory context injected at session start
   logger.ts       — Structured logging with section-colored output

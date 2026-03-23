@@ -37,12 +37,15 @@ import {
     updateMemory,
     deleteEmptyProjects,
     batchDeleteProjects,
+    setProjectConsolidate,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
 import { createResponse } from 'better-sse';
 import { channel, broadcast } from './sse.js';
 import { runCleanup } from './worker.js';
+import { runArchitectureScanForProject } from './architecture/pipeline.js';
+import { checkGitConsolidation } from './consolidation.js';
 import { generateSummary, computeMemoryHash, computeMemorySnapshot } from './summary.js';
 import { log } from './logger.js';
 import { getConfig, configSchema, writeConfigYaml } from './config.js';
@@ -323,8 +326,11 @@ export function createApp(): Hono {
             sql += " WHERE (p.path = ? OR p.path = '_global')";
             params.push(project);
         }
-        sql += ' ORDER BY o.created_at DESC LIMIT ?';
-        params.push(limit);
+        sql += ' ORDER BY o.created_at DESC';
+        if (limit > 0) {
+            sql += ' LIMIT ?';
+            params.push(limit);
+        }
         return c.json(db.prepare(sql).all(...params));
     });
 
@@ -564,6 +570,30 @@ export function createApp(): Hono {
         log('api', `Manual summary generation triggered for project ${id}`);
         const ok = await generateSummary(id, 'full');
         if (!ok) return c.json({ error: 'Summary generation failed' }, 500);
+        return c.json({ ok: true });
+    });
+
+    app.post('/api/projects/:id/architecture', async (c) => {
+        const id = Number(c.req.param('id'));
+        log('api', `Manual architecture rescan triggered for project ${id}`);
+        const scanned = await runArchitectureScanForProject(id, { force: true });
+        return c.json({ ok: true, scanned });
+    });
+
+    app.put('/api/projects/:id/consolidate', async (c) => {
+        const id = Number(c.req.param('id'));
+        const { consolidate } = await c.req.json();
+        if (consolidate !== '' && consolidate !== 'yes' && consolidate !== 'no') {
+            return c.json({ error: "consolidate must be '', 'yes', or 'no'" }, 400);
+        }
+        setProjectConsolidate(id, consolidate);
+        log('api', `Set consolidate=${consolidate} for project ${id}`);
+        return c.json({ ok: true });
+    });
+
+    app.post('/api/consolidate', async (c) => {
+        log('api', 'Manual git consolidation triggered');
+        await checkGitConsolidation();
         return c.json({ ok: true });
     });
 

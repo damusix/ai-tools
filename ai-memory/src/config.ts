@@ -32,6 +32,20 @@ const contextSchema = z.object({
     tagsTokenBudget: z.number().min(50).default(200),
 });
 
+const architectureSchema = z.object({
+    enabled: z.boolean().default(true),
+    summaryTokenBudget: z.number().min(50).default(500),
+    fullMaxTokens: z.number().min(200).default(2000),
+    scanIntervalDays: z.number().min(1).default(7),
+    signalsMode: z.enum(['regex', 'llm', 'both']).default('regex'),
+    signalsLlmMaxTokens: z.number().min(200).default(1500),
+    treeMaxDepth: z.number().min(1).default(5),
+    manifestMaxFiles: z.number().min(1).default(24),
+    manifestMaxCharsPerFile: z.number().min(500).default(12000),
+    manifestMaxTotalChars: z.number().min(1000).default(80000),
+    scanProjectsPerTick: z.number().min(1).default(3),
+});
+
 const serverSchema = z.object({
     port: z.number().min(1).max(65535).default(24636),
     restartDelayMs: z.number().min(50).default(200),
@@ -42,11 +56,18 @@ const apiSchema = z.object({
     logsDefaultLines: z.number().min(1).default(500),
 });
 
+const projectsSchema = z.object({
+    consolidateToGitRoot: z.boolean().default(false),
+    consolidateIntervalMs: z.number().min(10000).default(60000),
+});
+
 export const configSchema = z.object({
     worker: workerSchema.default({}),
     context: contextSchema.default({}),
+    architecture: architectureSchema.default({}),
     server: serverSchema.default({}),
     api: apiSchema.default({}),
+    projects: projectsSchema.default({}),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -63,9 +84,11 @@ function applyDefaults(raw: Record<string, unknown>): AppConfig {
         summary: summarySchema.parse(rawWorker.summary ?? {}),
     });
     const context = contextSchema.parse(raw.context ?? {});
+    const architecture = architectureSchema.parse(raw.architecture ?? {});
     const server = serverSchema.parse(raw.server ?? {});
     const api = apiSchema.parse(raw.api ?? {});
-    return { worker, context, server, api };
+    const projects = projectsSchema.parse(raw.projects ?? {});
+    return { worker, context, architecture, server, api, projects };
 }
 
 export function loadConfig(path?: string): AppConfig {
