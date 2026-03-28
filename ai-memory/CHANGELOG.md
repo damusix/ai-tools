@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.1
+
+### Features
+
+- **add ralph-loop with curl-installable installer** [#daeadaf](https://github.com/damusix/ai-tools/commit/daeadaf083485dd5b0db5d37b8c03a8bf9ec1ec4)
+  Add ralph-loop, an autonomous coding loop that drives AI agents through
+  iterative development cycles. Includes install script for native setup
+  via curl | bash, Docker environment, and test suite.
+- **changelog renders commit body as structured h4 sections with GitHub commit links** [#e1503a6](https://github.com/damusix/ai-tools/commit/e1503a6b7ecf9f1ce402c60c567c1e174f6a9508)
+### Bug Fixes
+
+- **improve ai-memory mcp instructions; fix ralph loop feedback** [#8125d96](https://github.com/damusix/ai-tools/commit/8125d96f3dce70e9f33ff1a9013abeac8f9b9609)
 ## 1.3.0
 
 ### Features
