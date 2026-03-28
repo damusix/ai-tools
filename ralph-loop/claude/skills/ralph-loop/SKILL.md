@@ -71,6 +71,8 @@ comprehensive tooling. The entrypoint handles first-run setup automatically
 |-----------|---------------|---------|
 | `./home` | `/home/ralph` | Persistent home directory — project folders live here |
 | `./src` | `/opt/ralph` | Ralph script and prompt templates |
+| `./claude/skills` | `/home/ralph/.claude/skills` | Claude Code skills (live-editable) |
+| `./claude/plugins` | `/home/ralph/.claude/plugins` | Claude Code plugins (live-editable) |
 
 
 ## Instantiate: New Ralph Loop
@@ -182,7 +184,7 @@ The loop exits when:
 | `ralph new` | Reset loop cycle, keep config |
 | `ralph run` | Execute the iteration loop |
 | `ralph run --dry-run` | Print assembled prompt without invoking AI |
-| `ralph run --verbose` | Stream first 300 chars of tool output |
+| `ralph run --verbose` | Suppress tool output summary line |
 | `ralph run --tool amp` | Use a different AI tool |
 | `ralph run --max 5` | Override max iterations |
 | `ralph help` | Print usage |

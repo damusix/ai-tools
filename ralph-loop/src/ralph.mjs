@@ -3,6 +3,8 @@
 // ralph.mjs — autonomous coding loop
 // Runs from any project directory. Not a project dependency.
 
+import { createWriteStream } from 'node:fs'
+
 $.verbose = false
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -11,7 +13,7 @@ const RALPH_DIR = 'docs/ralph-loop'
 const COMMIT_MSG_FILE = path.join(RALPH_DIR, '.ralph-commit-msg')
 const COMPLETION_SIGIL = '<promise>COMPLETE</promise>'
 const TOOL_PROBE_TIMEOUT = 3000
-const TOOL_EXEC_TIMEOUT = 0 // 0 = no timeout
+const TOOL_EXEC_TIMEOUT = 30 * 60 * 1000 // 30 minutes per attempt
 const LOG_DIR = path.join(RALPH_DIR, 'logs')
 // Resolve through symlink: ~/bin/ralph → /opt/ralph/ralph.mjs
 // zx clobbers __filename/__dirname and import.meta.url follows the symlink,
@@ -405,14 +407,19 @@ async function cmdRun() {
 
     info(`invoking ${cfg.tool}...`)
     let retryN = 0
+    let toolTextOutput = ''
+    const toolLog = path.join(LOG_DIR, `tool-${Date.now()}.log`)
+    const toolStream = createWriteStream(toolLog, { flags: 'a' })
+    info(`tool output → ${toolLog}`)
     const [result, toolErr] = await attempt(() => within(() =>
       retry(3, async () => {
         if (retryN > 0) info(`retry ${retryN}/3...`)
         retryN++
+        toolTextOutput = ''
         let proc
         switch (cfg.tool) {
           case 'claude':
-            proc = $({input: assembled})`claude --dangerously-skip-permissions --print --verbose`
+            proc = $({input: assembled})`claude --dangerously-skip-permissions --print --output-format stream-json --verbose --include-partial-messages`
             break
           case 'amp':
             proc = $`cat ${tmpFile} | amp --dangerously-allow-all`
@@ -426,19 +433,72 @@ async function cmdRun() {
           default:
             die(`unknown tool: ${cfg.tool}`)
         }
-        // Stream tool output to terminal live
-        proc.pipe.stderr(process.stderr)
-        proc.pipe.stdout(process.stderr)
-        // Heartbeat + timeout
+        // Parse stream-json, accumulate text, write to log + stderr
         const started = Date.now()
-        const heartbeat = setInterval(() => {
-          const elapsed = Math.round((Date.now() - started) / 1000)
-          info(`still running... (${elapsed}s)`)
-        }, 30_000)
+        function elapsed() {
+          const s = Math.round((Date.now() - started) / 1000)
+          const mm = String(Math.floor(s / 60)).padStart(2, '0')
+          const ss = String(s % 60).padStart(2, '0')
+          return `${mm}:${ss}`
+        }
+        function emit(msg) {
+          const line = `${chalk.gray(`[${elapsed()}]`)} ${msg}\n`
+          process.stderr.write(line)
+          toolStream.write(`[${elapsed()}] ${msg}\n`)
+        }
+        let lineBuf = ''
+        let textBuf = ''
+        proc.stdout.on('data', (chunk) => {
+          const str = chunk.toString()
+          if (cfg.tool !== 'claude') {
+            toolStream.write(str)
+            toolTextOutput += str
+            return
+          }
+          lineBuf += str
+          const lines = lineBuf.split('\n')
+          lineBuf = lines.pop()
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const evt = JSON.parse(line)
+              if (evt.type === 'stream_event' && evt.event?.delta?.type === 'text_delta') {
+                toolTextOutput += evt.event.delta.text
+                textBuf += evt.event.delta.text
+                // Flush on sentence boundaries
+                if (/[.!?\n]/.test(evt.event.delta.text)) {
+                  const trimmed = textBuf.trim()
+                  if (trimmed) emit(trimmed)
+                  textBuf = ''
+                }
+              } else if (evt.type === 'assistant' && evt.message?.content) {
+                // Flush any pending text
+                if (textBuf.trim()) { emit(textBuf.trim()); textBuf = '' }
+                for (const block of evt.message.content) {
+                  if (block.type === 'tool_use') {
+                    const input = typeof block.input === 'string' ? block.input : JSON.stringify(block.input).slice(0, 200)
+                    emit(`${chalk.cyan(`[tool: ${block.name}]`)} ${input}`)
+                  }
+                }
+              } else if (evt.result) {
+                toolTextOutput = evt.result
+              }
+            } catch {}
+          }
+        })
+        proc.stderr.on('data', (chunk) => {
+          toolStream.write(chunk)
+        })
+        const timeout = setTimeout(() => {
+          info(`tool timeout after ${TOOL_EXEC_TIMEOUT / 1000}s — killing`)
+          proc.kill('SIGTERM')
+        }, TOOL_EXEC_TIMEOUT)
         try {
           return await proc
         } finally {
-          clearInterval(heartbeat)
+          if (textBuf.trim()) emit(textBuf.trim())
+          clearTimeout(timeout)
+          toolStream.end()
         }
       })
     ))
@@ -458,7 +518,7 @@ async function cmdRun() {
       continue
     }
 
-    let output = result.stdout
+    let output = toolTextOutput || result.stdout
     log('INFO', `tool output: ${output.length} chars`)
     if (!cliOpts.verbose) info(`tool call (${output.length} chars)`)
 

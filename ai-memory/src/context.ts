@@ -108,6 +108,9 @@ export function buildStartupContext(projectPath: string): string {
 
     const lines: string[] = [];
     lines.push(`<memory-context project="${projectPath}">`);
+    lines.push(`\n## Project Identity`);
+    lines.push(`Your current project is: \`${projectPath}\``);
+    lines.push(`When calling any ai-memory MCP tool (save_memory, search_memories, list_memories, etc.), you MUST pass this exact absolute path as the \`project\` parameter, or omit it to use the server default. Do NOT use project names, abbreviations, or any other identifier — always use the full filesystem path shown above.`);
 
     if (getConfig().architecture.enabled) {
 

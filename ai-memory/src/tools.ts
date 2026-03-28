@@ -34,7 +34,7 @@ export function createMcpServer(): McpServer {
                 project: z
                     .string()
                     .optional()
-                    .describe("Project path. Defaults to current project. Use '_global' for cross-project."),
+                    .describe("Absolute filesystem path of the project's root directory (e.g. /Users/alice/projects/my-app). Must match your current working directory exactly. Use '_global' only for memories that apply across all projects. Omit to use server default."),
                 domain: z.string().default('general').describe('Domain (e.g., frontend, backend, data). See list_domains for options.'),
                 reason: z.string().optional().describe('Why this memory is being saved'),
             }),
@@ -58,7 +58,7 @@ export function createMcpServer(): McpServer {
             inputSchema: z.object({
                 query: z.string().describe('Search query'),
                 tags: z.array(z.string()).optional().describe('Filter by tags'),
-                project: z.string().optional().describe('Scope to project path'),
+                project: z.string().optional().describe("Absolute filesystem path of the project root (e.g. /Users/alice/projects/my-app). Must match your working directory. Omit to use server default."),
                 category: z.string().optional().describe('Filter by category. Use list_categories to see options.'),
                 limit: z.number().default(20).describe('Result limit. 0 = no limit.'),
                 domain: z.string().optional().describe('Filter by domain'),
@@ -81,7 +81,7 @@ export function createMcpServer(): McpServer {
             description: 'Full-text search observations (atomic facts from turns).',
             inputSchema: z.object({
                 query: z.string(),
-                project: z.string().optional(),
+                project: z.string().optional().describe("Absolute filesystem path of the project root (e.g. /Users/alice/projects/my-app). Must match your working directory. Omit to use server default."),
                 limit: z.number().default(20),
             }),
         },
@@ -100,7 +100,7 @@ export function createMcpServer(): McpServer {
         {
             description: 'Browse memories with optional filters.',
             inputSchema: z.object({
-                project: z.string().optional(),
+                project: z.string().optional().describe("Absolute filesystem path of the project root (e.g. /Users/alice/projects/my-app). Must match your working directory. Omit to use server default."),
                 tag: z.string().optional(),
                 category: z.string().optional().describe('Filter by category. Use list_categories to see options.'),
                 limit: z.number().default(500).describe('Result limit. 0 = no limit.'),
@@ -138,7 +138,7 @@ export function createMcpServer(): McpServer {
         {
             description: 'List all distinct tags with usage counts.',
             inputSchema: z.object({
-                project: z.string().optional().describe('Project path'),
+                project: z.string().optional().describe("Absolute filesystem path of the project root. Omit to use server default."),
             }),
         },
         async ({ project }) => {
@@ -155,7 +155,7 @@ export function createMcpServer(): McpServer {
         {
             description: 'List all memory domains with usage counts.',
             inputSchema: z.object({
-                project: z.string().optional().describe('Project path'),
+                project: z.string().optional().describe("Absolute filesystem path of the project root. Omit to use server default."),
             }),
         },
         async ({ project }) => {
@@ -172,7 +172,7 @@ export function createMcpServer(): McpServer {
         {
             description: 'List all memory categories with usage counts.',
             inputSchema: z.object({
-                project: z.string().optional().describe('Project path'),
+                project: z.string().optional().describe("Absolute filesystem path of the project root. Omit to use server default."),
             }),
         },
         async ({ project }) => {

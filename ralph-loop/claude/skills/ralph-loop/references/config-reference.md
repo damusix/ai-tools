@@ -42,7 +42,7 @@ The AI coding tool to invoke. Each tool is called differently:
 
 | Tool | Invocation |
 |------|-----------|
-| `claude` | `cat prompt.md \| claude --dangerously-skip-permissions --print` |
+| `claude` | `claude --dangerously-skip-permissions --print --output-format stream-json --verbose --include-partial-messages` (prompt via stdin) |
 | `amp` | `cat prompt.md \| amp --dangerously-allow-all` |
 | `codex` | `cat prompt.md \| codex exec --dangerously-bypass-approvals-and-sandbox` |
 | `opencode` | `opencode run --file prompt.md "Follow the instructions..."` |
@@ -54,7 +54,7 @@ Default: `claude`
 Maximum number of iterations before the loop exits with code 1. The iteration count
 is derived from git commit messages matching `ralph(iteration-` in the range `anchor..HEAD`.
 
-Default: `10`
+Default: `50`
 
 ### anchor
 
@@ -143,7 +143,7 @@ CLI flags take precedence over config values:
 | `--status <path>` | `status` | `ralph run --status my-status.md` |
 | `--config <path>` | config file path | `ralph run --config custom.yml` |
 | `--dry-run` | — | Print assembled prompt, do not invoke AI |
-| `--verbose` | — | Stream first 300 chars of tool output |
+| `--verbose` | — | Suppress tool output summary line |
 
 
 ## Prompt Assembly Tokens
@@ -161,6 +161,7 @@ The preamble and postamble templates use `{{PLACEHOLDER}}` tokens rendered at ru
 | `{{STATUS_BLOCK}}` | Contents of the status report file |
 | `{{STATUS_PATH}}` | Path to the status report file |
 | `{{TIMESTAMP}}` | ISO 8601 timestamp at assembly time |
+| `{{COMMIT_MSG_PATH}}` | Path to the commit message file |
 
 These tokens are used in the template files under `src/prompts/`. They are not
 user-configurable — they are resolved automatically by ralph.
@@ -222,8 +223,7 @@ quality_checks:
 
 ## Logging
 
-Each `ralph run` invocation creates a log file at `tmp/ralph-<timestamp>.log` in the
-project CWD. Logs capture:
+Each `ralph run` invocation creates a log file at `docs/ralph-loop/logs/ralph-<timestamp>.log`. Logs capture:
 
 - Configuration loaded
 - Environment discovery results
