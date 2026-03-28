@@ -36,6 +36,40 @@ Ralph is the right tool when your task is **decomposable into ordered steps** wh
 - Exploratory work where you don't know what "done" looks like yet
 
 
+## Prerequisites
+
+Ralph runs inside a Docker container that comes pre-loaded with everything you need. You only need two things on your host machine:
+
+- **Docker** and **Docker Compose** — to build and run the ralph-wiggum container
+- **An API key** for your chosen AI tool (e.g., `ANTHROPIC_API_KEY` for Claude)
+
+That's it. The container provides all runtimes, build tools, editors, search tools, and AI CLI tools. You do not need Node.js, Go, Rust, Python, or any other runtime installed locally — the dockerized environment handles everything.
+
+
+## Quick Start
+
+Build and start the container:
+
+    docker compose up -d --build
+
+Enter the container:
+
+    docker exec -it ralph-wiggum zsh
+
+From here, everything you need is already installed. Initialize a loop inside any git repo:
+
+    cd ~/my-project
+    ralph init               # scaffolds docs/ralph-loop/ with config, prompt, status
+    vim docs/ralph-loop/ralph-prompt.md   # write your task
+    ralph run                # start the loop
+
+To reset for a new task (keeping your config):
+
+    ralph new                # clears status, moves the anchor forward
+    vim docs/ralph-loop/ralph-prompt.md   # write the new task
+    ralph run
+
+
 ## Writing Effective Prompts
 
 The prompt is the most important input. Ralph wraps it with auto-generated context (environment, git history, prior status reports) and instructions (commit message format, status report format, completion signal). You write only the task itself.
@@ -109,20 +143,6 @@ prompt:
 The spec stays fixed while you edit the task list between cycles.
 
 
-## Quick Start
-
-    cd ~/my-project          # must be a git repo
-    ralph init               # scaffolds docs/ralph-loop/ with config, prompt, status
-    vim docs/ralph-loop/ralph-prompt.md   # write your task
-    ralph run                # start the loop
-
-To reset for a new task (keeping your config):
-
-    ralph new                # clears status, moves the anchor forward
-    vim docs/ralph-loop/ralph-prompt.md   # write the new task
-    ralph run
-
-
 ## Commands
 
 | Command | Purpose |
@@ -130,7 +150,11 @@ To reset for a new task (keeping your config):
 | `ralph init` | First-time setup — creates `docs/ralph-loop/` with config, prompt, and status files |
 | `ralph new` | Reset for a new task — clears status, moves the anchor forward |
 | `ralph run` | Execute the iteration loop |
+| `ralph run --dry-run` | Print the assembled prompt without invoking the AI tool |
+| `ralph run --tool amp` | Use a different AI tool (amp, codex, opencode) |
+| `ralph run --max 5` | Override max iterations |
 | `ralph help` | Print usage |
+
 
 ### Options
 
@@ -139,7 +163,7 @@ To reset for a new task (keeping your config):
     --tool <name>       AI tool: claude | amp | codex | opencode
     --max <n>           Max iterations (default: 50)
     --dry-run           Print the assembled prompt, do not invoke AI
-    --verbose           Stream truncated tool output (first 300 chars)
+    --verbose           Suppress the post-invocation summary line
     --config <path>     Config file path (default: ./docs/ralph-loop/ralph.config.yml)
 
 CLI flags override config. Config overrides defaults.
@@ -169,6 +193,18 @@ Each iteration follows four phases:
 2. **Compose** — Build a three-layer prompt: auto-generated preamble (environment, git context, status history) + your prompt + auto-generated postamble (commit/status/completion instructions).
 3. **Execute** — Invoke the AI tool. Retry up to 3 times on failure.
 4. **Evaluate** — Run quality checks. If all pass, commit the work. If any fail, stash the changes and log the failure to the status report. If the agent signals completion and all checks pass, exit.
+
+### Real-time output
+
+Ralph streams real-time output to your terminal while the AI agent works. When using Claude, ralph invokes it with `--output-format stream-json` and `--include-partial-messages`, which gives you live visibility into:
+
+- **Text responses** as they are generated, flushed on sentence boundaries
+- **Tool calls** with their names and inputs (e.g., `[tool: Edit] {"file_path": ...}`)
+- **Elapsed timestamps** on every line so you can track how long each step takes
+
+All output is also written to a per-invocation tool log at `docs/ralph-loop/logs/tool-<timestamp>.log` for post-run review.
+
+For non-Claude tools (amp, codex, opencode), output is captured to the tool log file.
 
 ### The status report
 
@@ -248,33 +284,63 @@ Ralph's own source lives separately and is never copied into the project:
 
 ## Monitoring Long-Running Loops
 
-Ralph's AI tool invocations can take a long time. Since `claude --print` does not stream intermediate output, you won't see activity in the terminal while the agent is working. To verify that the loop is actually running and burning tokens, install [claude-monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor) inside the container:
+Even with real-time streaming, you may want deeper visibility into token usage and cost while the loop runs. Install [claude-monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor) inside the container:
 
     uv tool install claude-monitor
 
 Then open a second terminal into the container and run:
 
+    docker exec -it ralph-wiggum zsh
     claude-monitor
 
 ![Claude Code Usage Monitor](https://raw.githubusercontent.com/Maciek-roboblog/Claude-Code-Usage-Monitor/main/doc/scnew.png)
 
-This gives you real-time visibility into cost, token usage, messages, burn rate, model distribution, and time-to-reset — so you know the loop is working even when the terminal is quiet.
+This gives you real-time visibility into cost, token usage, messages, burn rate, model distribution, and time-to-reset — so you can track spend across iterations.
 
 
 ## Docker Environment
 
-Ralph runs inside a Docker container based on Debian Bookworm. The Dockerfile installs:
+The ralph-wiggum container is based on Debian Bookworm and comes with everything needed to execute. You do not need to install any runtimes or tools on your host — the container is self-contained.
 
-- **Runtimes:** Node.js 24, Python 3, Go 1.26, Rust (via rustup), Ruby
-- **Build tools:** gcc, make, cmake, autoconf, automake
-- **Search:** ripgrep, fd, fzf, ag, mlocate
-- **Text processing:** sed, awk, jq, yq
-- **Editors:** vim, neovim, nano
-- **Shell:** zsh with Oh My Zsh (agnoster theme)
-- **Networking:** curl, wget, ssh, netcat, socat
-- **Monitoring:** htop, lsof, strace
-- **AI tools:** Claude Code (native installer), opencode-ai
-- **npm globals:** zx
+**Runtimes:**
+
+- Node.js 24, Python 3, Go 1.26, Rust (via rustup), Ruby
+
+**Build tools:**
+
+- gcc, make, cmake, autoconf, automake
+
+**Search & discovery:**
+
+- ripgrep, fd, fzf, ag, mlocate, tree
+
+**Text processing:**
+
+- sed, awk, jq, yq
+
+**Editors:**
+
+- vim, neovim, nano
+
+**Shell:**
+
+- zsh with Oh My Zsh (agnoster theme)
+
+**Networking:**
+
+- curl, wget, ssh, netcat, socat
+
+**Monitoring:**
+
+- htop, lsof, strace
+
+**AI tools:**
+
+- Claude Code (native installer), opencode-ai, tessl
+
+**npm globals:**
+
+- zx
 
 The ralph user has passwordless sudo and zsh as the default shell.
 
@@ -308,7 +374,7 @@ Four bind mounts:
 ### Usage
 
     docker compose up -d          # start the container
-    docker compose exec ralph-wiggum zsh   # interactive shell
+    docker exec -it ralph-wiggum zsh   # interactive shell
     docker compose down           # stop
 
-The container runs `sleep infinity` and is accessed via `docker compose exec`. The entrypoint handles first-run setup (git identity, ~/bin symlink, Oh My Zsh, PATH) using a sentinel file (`~/.ralph-initialized`) so it only runs once.
+The container runs `sleep infinity` and is accessed via `docker exec`. The entrypoint handles first-run setup (git identity, ~/bin symlink, Oh My Zsh, PATH) using a sentinel file (`~/.ralph-initialized`) so it only runs once.

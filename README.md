@@ -1,6 +1,6 @@
 # claude-marketplace
 
-Install one marketplace, get two practical Claude Code plugins: persistent memory and safer Bash auto-approval.
+A monorepo for Claude Code plugins and standalone AI tooling. Install the marketplace for two practical plugins (persistent memory and safer Bash auto-approval), or use the standalone ralph-loop for autonomous multi-iteration coding.
 
 ## Quickstart
 
@@ -37,6 +37,27 @@ Auto-approve compound Bash commands safely by parsing each command segment again
 - Ships prebuilt binaries for `darwin/linux` and `amd64/arm64`
 
 Docs: [`cc-auto-approve-fix/README.md`](./cc-auto-approve-fix/README.md)
+
+## Standalone tools
+
+### `ralph-loop`
+
+An autonomous coding loop that drives AI agents (Claude, Amp, Codex, OpenCode) through iterative development cycles. Not a Claude Code plugin — ralph is a standalone [zx](https://google.github.io/zx/) script that runs inside a self-contained Docker environment.
+
+- Splits large tasks into focused iterations — one job, one commit, one status update per cycle
+- Each iteration starts with a fresh agent session, keeping context clean and decisions sharp
+- Quality gates stash broken work and log failures so the next iteration can recover
+- Streams real-time output (text, tool calls, timestamps) while the agent works
+- Includes a Dockerfile with all runtimes and tooling pre-installed — nothing to configure on the host
+
+```shell
+docker compose up -d --build
+docker exec -it ralph-wiggum zsh
+cd ~/my-project && ralph init
+```
+
+Docs: [`ralph-loop/README.md`](./ralph-loop/README.md)
+
 
 ## Why this marketplace
 
