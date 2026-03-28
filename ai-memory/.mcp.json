@@ -1,6 +1,1 @@
-{
-    "ai-memory": {
-        "command": "npx",
-        "args": ["-y", "mcp-remote", "http://localhost:24636/mcp"]
-    }
-}
+{"ai-memory":{"command":"npx","args":["-y","mcp-remote","http://localhost:24636/mcp"]}}

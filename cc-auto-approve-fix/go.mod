@@ -1,4 +1,4 @@
-module github.com/oryband/claude-code-auto-approve
+module github.com/damusix/ai-tools/cc-auto-approve-fix
 
 go 1.25
 

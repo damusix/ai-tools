@@ -1,0 +1,17 @@
+services:
+  ralph-wiggum:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ralph-wiggum
+    hostname: ralph-wiggum
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./home:/home/ralph
+      - ./src:/opt/ralph
+      - ./claude/skills:/home/ralph/.claude/skills
+      - ./claude/plugins:/home/ralph/.claude/plugins
+    environment:
+      - TERM=xterm-256color
+    restart: unless-stopped
