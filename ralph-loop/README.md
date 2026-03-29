@@ -36,27 +36,33 @@ Ralph is the right tool when your task is **decomposable into ordered steps** wh
 - Exploratory work where you don't know what "done" looks like yet
 
 
-## Prerequisites
+## Installation
 
-Ralph runs inside a Docker container that comes pre-loaded with everything you need. You only need two things on your host machine:
+### curl (recommended)
 
-- **Docker** and **Docker Compose** — to build and run the ralph-wiggum container
-- **An API key** for your chosen AI tool (e.g., `ANTHROPIC_API_KEY` for Claude)
+    curl -fsSL https://raw.githubusercontent.com/damusix/ai-tools/main/ralph-loop/install.sh | bash
 
-That's it. The container provides all runtimes, build tools, editors, search tools, and AI CLI tools. You do not need Node.js, Go, Rust, Python, or any other runtime installed locally — the dockerized environment handles everything.
+This downloads ralph and installs it to `~/.ralph`, with a symlink at `~/.local/bin/ralph`. The installer checks for prerequisites and adds `~/.local/bin` to your PATH if needed.
+
+**Host prerequisites:**
+
+- **Node.js 18+** — the installer will check and error if missing
+- **zx** — installed automatically if not present
+- **An AI tool credential** — an API key (e.g., `ANTHROPIC_API_KEY`) or a cloud subscription (e.g., Claude Pro/Max)
+
+### Docker (batteries-included)
+
+If you prefer a fully self-contained environment, ralph ships with a Docker setup that includes all runtimes, build tools, editors, search tools, and AI CLI tools. You do not need Node.js, Go, Rust, Python, or anything else installed locally — the container handles everything.
+
+    docker compose up -d --build
+    docker exec -it ralph-wiggum zsh
+
+From here, everything you need is already installed. See [Docker Environment](#docker-environment) for details.
 
 
 ## Quick Start
 
-Build and start the container:
-
-    docker compose up -d --build
-
-Enter the container:
-
-    docker exec -it ralph-wiggum zsh
-
-From here, everything you need is already installed. Initialize a loop inside any git repo:
+Initialize a loop inside any git repo:
 
     cd ~/my-project
     ralph init               # scaffolds docs/ralph-loop/ with config, prompt, status
