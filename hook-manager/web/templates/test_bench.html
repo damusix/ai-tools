@@ -1,0 +1,168 @@
+{{define "title"}} — Test Bench{{end}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Page header -->
+    <div class="page-header">
+        <h1 class="page-title">Test Bench</h1>
+        <p class="page-description">Fire hook events with custom payloads and inspect the response.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Input Panel -->
+        <div class="space-y-4">
+            <div class="surface-elevated surface--padded">
+                <h2 class="section-title-sm">Request</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="form-label">Event Type</label>
+                        <select id="event-select" onchange="loadSamplePayload()" class="input">
+                            {{range .Events}}
+                            <option value="{{.Name}}" data-description="{{.Desc}}">{{.Name}}</option>
+                            {{end}}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">JSON Payload</label>
+                        <textarea id="payload-input" rows="16" class="input input--mono-lg"></textarea>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="fire-btn" onclick="fireEvent()" class="btn-primary inline-flex items-center gap-1.5">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Fire Event
+                        </button>
+                        <button onclick="loadSamplePayload()" class="btn-secondary">Reset Payload</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Response Panel -->
+        <div class="space-y-4">
+            <div class="surface-elevated surface--padded">
+                <h2 class="section-title-sm">Response</h2>
+                <div id="response-empty" class="empty-state capture-empty--sm">
+                    <div class="empty-state-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                    </div>
+                    <div class="empty-state-text">Fire an event to see the response here.</div>
+                </div>
+                <div id="response-content" class="hidden space-y-4">
+                    <div class="flex gap-6 result-info-box">
+                        <div>
+                            <span class="result-label">Status</span>
+                            <div id="resp-status" class="result-value-mono"></div>
+                        </div>
+                        <div>
+                            <span class="result-label">Time</span>
+                            <div id="resp-time" class="result-value-secondary"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="result-section-label">Response Body</div>
+                        <pre class="result-pre"><code id="resp-body" class="language-json"></code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden toast-success"></div>
+
+<script>
+var samples = {
+    PreToolUse: '{\n    "tool_name": "Bash",\n    "tool_input": {\n        "command": "ls -la"\n    }\n}',
+    PostToolUse: '{\n    "tool_name": "Write",\n    "tool_input": {\n        "file_path": "test.txt"\n    },\n    "tool_response": {\n        "success": true\n    }\n}',
+    PostToolUseFailure: '{\n    "tool_name": "Bash",\n    "tool_input": {\n        "command": "false"\n    },\n    "tool_response": {\n        "error": "command failed"\n    }\n}',
+    UserPromptSubmit: '{\n    "prompt": "Hello world"\n}',
+    Stop: '{\n    "last_assistant_message": "Done."\n}',
+    StopFailure: '{\n    "error": "context_limit_exceeded"\n}',
+    SubagentStop: '{\n    "agent_type": "inner"\n}',
+    SubagentStart: '{\n    "agent_type": "inner"\n}',
+    SessionStart: '{\n    "source": "startup",\n    "model": "claude-sonnet-4-6"\n}',
+    SessionEnd: '{\n    "reason": "clear"\n}',
+    PermissionRequest: '{\n    "tool_name": "Bash",\n    "tool_input": {\n        "command": "rm -rf /"\n    },\n    "permission_type": "bash"\n}',
+    Notification: '{\n    "notification_type": "info",\n    "message": "test notification"\n}',
+    InstructionsLoaded: '{\n    "load_reason": "user",\n    "instructions": "Be helpful"\n}',
+    ConfigChange: '{\n    "source": "user",\n    "changes": {\n        "model": "claude-sonnet-4-6"\n    }\n}',
+    FileChanged: '{\n    "file_path": "src/main.ts",\n    "change_type": "modified"\n}',
+    TeammateIdle: '{\n    "agent_type": "teammate",\n    "idle_duration_ms": 5000\n}',
+    TaskCompleted: '{\n    "task_id": "abc123",\n    "status": "completed"\n}',
+    WorktreeCreate: '{\n    "branch": "feature/test"\n}',
+    Elicitation: '{\n    "mcp_server": "test-server",\n    "prompt": "Enter value"\n}',
+    ElicitationResult: '{\n    "mcp_server": "test-server",\n    "result": "user-input"\n}'
+};
+
+function loadSamplePayload() {
+    var event = document.getElementById('event-select').value;
+    var payload = samples[event] || '{}';
+    document.getElementById('payload-input').value = payload;
+}
+
+function showToast(msg, isError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
+    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+}
+
+function fireEvent() {
+    var event = document.getElementById('event-select').value;
+    var btn = document.getElementById('fire-btn');
+    var payload;
+    try {
+        payload = document.getElementById('payload-input').value || '{}';
+        JSON.parse(payload); // validate
+    } catch(e) {
+        showToast('Invalid JSON payload', true);
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Firing...';
+    var start = performance.now();
+
+    fetch('/hook/' + event, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+    })
+    .then(function(r) {
+        var elapsed = Math.round(performance.now() - start);
+        document.getElementById('resp-time').textContent = elapsed + 'ms';
+        var statusEl = document.getElementById('resp-status');
+        statusEl.textContent = r.status + ' ' + r.statusText;
+        statusEl.className = r.ok ? 'result-value-mono color-success' : 'result-value-mono color-danger';
+        return r.text().then(function(body) {
+            try {
+                var parsed = JSON.parse(body);
+                return JSON.stringify(parsed, null, 2);
+            } catch(e) {
+                return body || '(empty)';
+            }
+        });
+    })
+    .then(function(body) {
+        document.getElementById('response-empty').classList.add('hidden');
+        document.getElementById('response-content').classList.remove('hidden');
+        var codeEl = document.getElementById('resp-body');
+        codeEl.textContent = body;
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightElement(codeEl);
+        }
+    })
+    .catch(function(err) {
+        showToast('Request failed: ' + err, true);
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Fire Event';
+    });
+}
+
+// Load initial sample payload
+loadSamplePayload();
+</script>
+{{end}}

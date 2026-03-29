@@ -1,0 +1,274 @@
+{{define "title"}} — Live Capture{{end}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="page-header flex items-center justify-between">
+        <div>
+            <h1 class="page-title">Live Capture</h1>
+            <p class="page-description">What Claude sends — raw event payloads as they arrive, before your hooks process them.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="pause-btn" onclick="togglePause()" class="btn-secondary inline-flex items-center gap-1.5">
+                <svg id="pause-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <svg id="play-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="hidden"><polygon points="5 3 19 12 5 21"/></svg>
+                <span id="pause-label">Pause</span>
+            </button>
+            <button onclick="clearCapture()" class="btn-ghost btn-ghost--sm btn-ghost--danger">Clear</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="surface capture-filter-bar">
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="capture-filter-label">Project</span>
+                <div id="project-filters" class="flex flex-wrap gap-2">
+                    <button class="tag active" data-project="" onclick="filterProject(this)">All</button>
+                </div>
+            </div>
+            <div class="ml-auto">
+                <input type="text" id="search-input" placeholder="Search events..." class="input capture-search">
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Feed -->
+    <div class="surface surface--flush">
+        <div class="event-header">
+            <div class="flex items-center gap-2">
+                <span id="status-dot" class="status-dot"></span>
+                <span class="status-text">
+                    <span id="event-count">0</span> events captured
+                </span>
+            </div>
+        </div>
+        <div id="event-feed" class="capture-feed">
+            <div id="empty-state" class="empty-state capture-empty">
+                <div class="empty-state-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
+                        <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4"/>
+                        <circle cx="12" cy="12" r="2"/>
+                        <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4"/>
+                        <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
+                    </svg>
+                </div>
+                <div class="empty-state-text">Waiting for events from Claude Code sessions...</div>
+                <p class="capture-hint">Events appear here as Claude Code triggers hooks.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden toast-success"></div>
+
+<script>
+var isPaused = false;
+var selectedProject = '';
+var events = [];
+var sseSource = null;
+
+function init() {
+    fetch('/api/capture/events?limit=500')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        events = data || [];
+        renderEvents();
+        loadProjects();
+        connectSSE();
+    })
+    .catch(function() { connectSSE(); });
+}
+
+function connectSSE() {
+    if (sseSource) sseSource.close();
+    sseSource = new EventSource('/api/capture/stream');
+    sseSource.onmessage = function(e) {
+        try {
+            var ev = JSON.parse(e.data);
+            events.push(ev);
+            if (events.length > 2000) events.shift();
+            updateProjectTag(ev.project);
+            document.getElementById('event-count').textContent = events.length;
+            if (!isPaused) {
+                appendEventRow(ev);
+            }
+        } catch(err) {}
+    };
+    sseSource.onerror = function() {
+        document.getElementById('status-dot').className = 'status-dot status-dot--error';
+    };
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    document.getElementById('pause-icon').classList.toggle('hidden', isPaused);
+    document.getElementById('play-icon').classList.toggle('hidden', !isPaused);
+    document.getElementById('pause-label').textContent = isPaused ? 'Resume' : 'Pause';
+    var dot = document.getElementById('status-dot');
+    dot.className = isPaused ? 'status-dot status-dot--paused' : 'status-dot';
+    if (!isPaused) renderEvents();
+}
+
+function renderEvents() {
+    var feed = document.getElementById('event-feed');
+    feed.innerHTML = '';
+    var search = document.getElementById('search-input').value.toLowerCase();
+
+    var filtered = [];
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (selectedProject && ev.project !== selectedProject) continue;
+        if (search && JSON.stringify(ev).toLowerCase().indexOf(search) === -1) continue;
+        filtered.push(ev);
+    }
+
+    if (filtered.length === 0) {
+        feed.innerHTML = '<div class="empty-state capture-empty--sm"><div class="empty-state-text">No events match your filters.</div></div>';
+        return;
+    }
+
+    for (var j = 0; j < filtered.length; j++) {
+        feed.appendChild(createEventRow(filtered[j]));
+    }
+    document.getElementById('event-count').textContent = events.length;
+    feed.scrollTop = feed.scrollHeight;
+}
+
+function appendEventRow(ev) {
+    if (selectedProject && ev.project !== selectedProject) return;
+    var search = document.getElementById('search-input').value.toLowerCase();
+    if (search && JSON.stringify(ev).toLowerCase().indexOf(search) === -1) return;
+
+    var feed = document.getElementById('event-feed');
+    var empty = document.getElementById('empty-state');
+    if (empty) empty.remove();
+
+    var wasAtBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 50;
+    feed.appendChild(createEventRow(ev));
+    if (wasAtBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+function createEventRow(ev) {
+    var row = document.createElement('div');
+    row.className = 'capture-event';
+
+    var t = '';
+    if (ev.timestamp) {
+        var d = new Date(ev.timestamp);
+        t = d.toLocaleTimeString('en-US', { hour12: false });
+    }
+    var proj = abbreviateProject(ev.project);
+
+    row.innerHTML =
+        '<div class="capture-event-header" onclick="togglePayload(this.parentNode)">' +
+            '<span class="capture-event-time">' + esc(t) + '</span>' +
+            '<span class="badge-event">' + esc(ev.event_type) + '</span>' +
+            '<span class="capture-event-project" title="' + attr(ev.project || '') + '">' + esc(proj) + '</span>' +
+            '<div class="capture-event-actions" onclick="event.stopPropagation()">' +
+                '<button class="btn-ghost btn-ghost--xs" onclick="copyPayload(' + ev.id + ')">Copy</button>' +
+                '<span class="capture-chevron" onclick="togglePayload(this.closest(\'.capture-event\'))">&#9656;</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="capture-event-payload hidden">' +
+            '<pre><code class="language-json">' + esc(JSON.stringify(ev.payload, null, 2)) + '</code></pre>' +
+        '</div>';
+
+    return row;
+}
+
+function togglePayload(row) {
+    var payload = row.querySelector('.capture-event-payload');
+    var chevron = row.querySelector('.capture-chevron');
+    var isHidden = payload.classList.contains('hidden');
+    payload.classList.toggle('hidden');
+    if (chevron) chevron.innerHTML = isHidden ? '&#9662;' : '&#9656;';
+    if (isHidden && typeof Prism !== 'undefined') {
+        Prism.highlightAllUnder(payload);
+    }
+}
+
+function copyPayload(eventId) {
+    for (var i = 0; i < events.length; i++) {
+        if (events[i].id === eventId) {
+            navigator.clipboard.writeText(JSON.stringify(events[i].payload, null, 2)).then(function() {
+                showToast('Payload copied to clipboard');
+            });
+            return;
+        }
+    }
+}
+
+function abbreviateProject(path) {
+    if (!path) return '(unknown)';
+    var parts = path.replace(/\\/g, '/').split('/');
+    if (parts.length <= 2) return path;
+    return parts.slice(-2).join('/');
+}
+
+function filterProject(btn) {
+    var tags = document.querySelectorAll('#project-filters .tag');
+    for (var i = 0; i < tags.length; i++) tags[i].classList.remove('active');
+    btn.classList.add('active');
+    selectedProject = btn.getAttribute('data-project') || '';
+    renderEvents();
+}
+
+function loadProjects() {
+    fetch('/api/capture/projects')
+    .then(function(r) { return r.json(); })
+    .then(function(projects) {
+        for (var i = 0; i < projects.length; i++) {
+            updateProjectTag(projects[i].path);
+        }
+    });
+}
+
+function updateProjectTag(project) {
+    if (!project) return;
+    var container = document.getElementById('project-filters');
+    var existing = container.querySelector('[data-project="' + CSS.escape(project) + '"]');
+    if (!existing) {
+        var btn = document.createElement('button');
+        btn.className = 'tag';
+        btn.setAttribute('data-project', project);
+        btn.textContent = abbreviateProject(project);
+        btn.title = project;
+        btn.onclick = function() { filterProject(btn); };
+        container.appendChild(btn);
+    }
+}
+
+function clearCapture() {
+    if (!confirm('Clear all captured events?')) return;
+    fetch('/api/capture/events', { method: 'DELETE' })
+    .then(function() {
+        events = [];
+        document.getElementById('event-feed').innerHTML =
+            '<div id="empty-state" class="empty-state capture-empty">' +
+                '<div class="empty-state-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+                    '<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4"/><circle cx="12" cy="12" r="2"/>' +
+                    '<path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>' +
+                '</svg></div>' +
+                '<div class="empty-state-text">Capture cleared.</div>' +
+            '</div>';
+        document.getElementById('event-count').textContent = '0';
+        showToast('Capture cleared');
+    });
+}
+
+function showToast(msg, isError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
+    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+}
+
+function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function attr(s) { return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+document.getElementById('search-input').addEventListener('input', function() { renderEvents(); });
+
+init();
+</script>
+{{end}}

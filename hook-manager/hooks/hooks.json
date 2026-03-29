@@ -1,0 +1,96 @@
+{
+    "hooks": {
+        "SessionStart": [{
+            "hooks": [{
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start.sh\"",
+                "timeout": 10
+            }]
+        }],
+        "SessionEnd": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/SessionEnd", "timeout": 10 }]
+        }],
+        "UserPromptSubmit": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/UserPromptSubmit", "timeout": 10 }]
+        }],
+        "PreToolUse": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/PreToolUse", "timeout": 10 }]
+        }],
+        "PostToolUse": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/PostToolUse", "timeout": 10 }]
+        }],
+        "PostToolUseFailure": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/PostToolUseFailure", "timeout": 10 }]
+        }],
+        "PermissionRequest": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/PermissionRequest", "timeout": 10 }]
+        }],
+        "Stop": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/Stop", "timeout": 10 }]
+        }],
+        "StopFailure": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/StopFailure", "timeout": 10 }]
+        }],
+        "SubagentStart": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/SubagentStart", "timeout": 10 }]
+        }],
+        "SubagentStop": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/SubagentStop", "timeout": 10 }]
+        }],
+        "TeammateIdle": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/TeammateIdle", "timeout": 10 }]
+        }],
+        "TaskCompleted": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/TaskCompleted", "timeout": 10 }]
+        }],
+        "Notification": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/Notification", "timeout": 10 }]
+        }],
+        "InstructionsLoaded": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/InstructionsLoaded", "timeout": 10 }]
+        }],
+        "ConfigChange": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/ConfigChange", "timeout": 10 }]
+        }],
+        "CwdChanged": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/CwdChanged", "timeout": 10 }]
+        }],
+        "FileChanged": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/FileChanged", "timeout": 10 }]
+        }],
+        "PreCompact": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/PreCompact", "timeout": 10 }]
+        }],
+        "PostCompact": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/PostCompact", "timeout": 10 }]
+        }],
+        "WorktreeCreate": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/WorktreeCreate", "timeout": 10 }]
+        }],
+        "WorktreeRemove": [{
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/WorktreeRemove", "timeout": 10 }]
+        }],
+        "Elicitation": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/Elicitation", "timeout": 10 }]
+        }],
+        "ElicitationResult": [{
+            "matcher": ".*",
+            "hooks": [{ "type": "http", "url": "http://localhost:47821/hook/ElicitationResult", "timeout": 10 }]
+        }]
+    }
+}

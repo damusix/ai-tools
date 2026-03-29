@@ -1,0 +1,124 @@
+{{define "title"}} — Scripts{{end}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Page header -->
+    <div class="page-header flex items-center justify-between">
+        <div>
+            <h1 class="page-title">Scripts</h1>
+            <p class="page-description">Manage your hook scripts. Each script can be used by one or more hooks.</p>
+        </div>
+        <button onclick="document.getElementById('new-script-form').classList.toggle('hidden')" class="btn-primary">
+            New Script
+        </button>
+    </div>
+
+    <!-- New Script Form -->
+    <div id="new-script-form" class="hidden surface-elevated surface--padded">
+        <h2 class="form-subtitle">Create New Script</h2>
+        <form id="create-script-form" class="space-y-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Filename</label>
+                    <input type="text" name="filename" required placeholder="my-hook.py" class="input">
+                    <p class="form-hint">Include extension (.py, .js, .sh, .ts, .go, .rb)</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description <span class="form-label-optional">(optional)</span></label>
+                    <input type="text" name="description" placeholder="What does this script do?" class="input">
+                    <p class="form-hint">Shown in script list and hook creation dropdown.</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit" class="btn-primary">Create Script</button>
+                <button type="button" onclick="document.getElementById('new-script-form').classList.add('hidden')" class="btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Script List -->
+    <div class="surface surface--flush">
+        {{if .Scripts}}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Script</th>
+                    <th class="th-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Scripts}}
+                <tr id="script-row-{{.Filename}}">
+                    <td>
+                        <div class="script-info">
+                            <a href="/scripts/{{.Filename}}" class="link script-filename">{{.Filename}}</a>
+                            {{if .Description}}
+                            <span class="script-description">{{.Description}}</span>
+                            {{end}}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="flex items-center gap-2">
+                            <a href="/scripts/{{.Filename}}" class="btn-ghost btn-ghost--sm">Edit</a>
+                            <button onclick="deleteScript('{{.Filename}}')" class="btn-ghost btn-ghost--sm btn-ghost--danger">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+            </div>
+            <div class="empty-state-text">No scripts found. Click "New Script" to create one.</div>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<div id="toast" class="toast hidden toast-success"></div>
+
+<script>
+function showToast(msg, isError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
+    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+}
+
+function deleteScript(filename) {
+    if (!confirm('Delete script "' + filename + '"?')) return;
+    fetch('/api/scripts/' + filename, { method: 'DELETE' })
+    .then(function(r) {
+        if (r.ok) {
+            var row = document.getElementById('script-row-' + filename);
+            if (row) row.remove();
+            showToast('Script deleted');
+        } else {
+            showToast('Failed to delete script', true);
+        }
+    });
+}
+
+document.getElementById('create-script-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var filename = form.querySelector('[name=filename]').value;
+    var description = form.querySelector('[name=description]').value;
+    fetch('/api/scripts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: filename, content: '', description: description })
+    }).then(function(r) {
+        if (r.ok) {
+            window.location.href = '/scripts/' + filename;
+        } else {
+            r.text().then(function(t) { showToast('Error: ' + t, true); });
+        }
+    });
+});
+</script>
+{{end}}

@@ -1,0 +1,196 @@
+{{define "title"}} — Edit Hook{{end}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Page header -->
+    <div class="page-header">
+        <div class="flex items-center gap-3 mb-3">
+            <a href="/hooks" class="btn-ghost btn-ghost--compact">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </a>
+            <span class="breadcrumb-text">Hooks</span>
+            <span class="breadcrumb-text">/</span>
+            <span class="badge-event">{{.Event}}</span>
+            <span class="breadcrumb-text">/</span>
+            <span class="breadcrumb-name">{{.Hook.Name}}</span>
+        </div>
+        <h1 class="page-title">Edit Hook</h1>
+        <p class="page-description">Modify the hook configuration and test it with sample payloads.</p>
+    </div>
+
+    <!-- Edit Form -->
+    <div class="surface-elevated surface--padded">
+        <h2 class="section-title-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Hook Configuration
+        </h2>
+        <form id="edit-hook-form" class="space-y-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="form-label">Name</label>
+                    <input type="text" name="name" value="{{.Hook.Name}}" required class="input">
+                </div>
+                <div>
+                    <label class="form-label">Type</label>
+                    <select name="type" id="hook-type-select" onchange="toggleDetailTypeFields(this)" class="input">
+                        <option value="command" {{if eq .Hook.Type "command"}}selected{{end}}>Command</option>
+                        <option value="managed" {{if eq .Hook.Type "managed"}}selected{{end}}>Managed Script</option>
+                    </select>
+                </div>
+                <div id="detail-command-field" {{if eq .Hook.Type "managed"}}class="hidden"{{end}}>
+                    <label class="form-label">Command</label>
+                    <input type="text" name="command" value="{{.Hook.Command}}" class="input">
+                </div>
+                <div id="detail-file-field" {{if ne .Hook.Type "managed"}}class="hidden"{{end}}>
+                    <label class="form-label">Script File</label>
+                    <input type="text" name="file" value="{{.Hook.File}}" class="input">
+                </div>
+                <div id="detail-runtime-field" {{if ne .Hook.Type "managed"}}class="hidden"{{end}}>
+                    <label class="form-label">Runtime</label>
+                    <input type="text" name="runtime" value="{{.Hook.Runtime}}" class="input">
+                </div>
+                <div>
+                    <label class="form-label">Matcher (regex)</label>
+                    <input type="text" name="matcher" value="{{.Hook.Matcher}}" class="input">
+                </div>
+                <div>
+                    <label class="form-label">Timeout (seconds)</label>
+                    <input type="number" name="timeout" value="{{.Hook.Timeout}}" min="1" class="input">
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button type="submit" class="btn-primary">Save Changes</button>
+                <span id="save-status" class="save-status"></span>
+            </div>
+        </form>
+    </div>
+
+    <!-- Test Section -->
+    <div class="surface-elevated surface--padded">
+        <h2 class="section-title-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Test Hook
+        </h2>
+        <div class="space-y-4">
+            <div>
+                <label class="form-label">JSON Payload</label>
+                <textarea id="test-payload" rows="6" placeholder='{"tool_name":"Bash","tool_input":{"command":"ls"}}' class="input input--mono">{{.SamplePayload}}</textarea>
+            </div>
+            <button id="test-btn" onclick="testHook()" class="btn-primary btn-test">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Test
+            </button>
+            <div id="test-result" class="hidden mt-4">
+                <div class="section-heading">Result</div>
+                <div class="result-box">
+                    <div class="flex flex-wrap gap-4 mb-4">
+                        <div>
+                            <span class="result-label">Exit Code:</span>
+                            <span id="result-exit" class="result-value-mono"></span>
+                        </div>
+                        <div>
+                            <span class="result-label">Duration:</span>
+                            <span id="result-duration" class="result-value-secondary"></span>
+                        </div>
+                    </div>
+                    <div id="result-timeout-row" class="hidden timeout-warning">Timed out!</div>
+                    <div class="mb-3">
+                        <div class="result-section-label">stdout</div>
+                        <pre class="result-pre--stdout"><code id="result-stdout"></code></pre>
+                    </div>
+                    <div>
+                        <div class="result-section-label">stderr</div>
+                        <pre class="result-pre--stderr"><code id="result-stderr"></code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden toast-success"></div>
+
+<script>
+function toggleDetailTypeFields(sel) {
+    var isManaged = sel.value === 'managed';
+    document.getElementById('detail-command-field').classList.toggle('hidden', isManaged);
+    document.getElementById('detail-file-field').classList.toggle('hidden', !isManaged);
+    document.getElementById('detail-runtime-field').classList.toggle('hidden', !isManaged);
+}
+
+function showToast(msg, isError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
+    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+}
+
+document.getElementById('edit-hook-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var type = form.querySelector('[name=type]').value;
+    var hook = {
+        name: form.querySelector('[name=name]').value,
+        type: type,
+        matcher: form.querySelector('[name=matcher]').value,
+        timeout: parseInt(form.querySelector('[name=timeout]').value) || 10,
+        enabled: true
+    };
+    if (type === 'command') {
+        hook.command = form.querySelector('[name=command]').value;
+    } else {
+        hook.file = form.querySelector('[name=file]').value;
+        hook.runtime = form.querySelector('[name=runtime]').value;
+    }
+    fetch('/api/hooks/{{.Event}}/{{.Hook.Name}}', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hook)
+    }).then(function(r) {
+        if (r.ok) {
+            document.getElementById('save-status').textContent = 'Saved!';
+            setTimeout(function() { document.getElementById('save-status').textContent = ''; }, 2000);
+        } else {
+            r.text().then(function(t) { showToast('Error: ' + t, true); });
+        }
+    });
+});
+
+function testHook() {
+    var btn = document.getElementById('test-btn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    var payload;
+    try {
+        payload = JSON.parse(document.getElementById('test-payload').value || '{}');
+    } catch(e) {
+        showToast('Invalid JSON payload', true);
+        btn.disabled = false;
+        btn.textContent = 'Run Test';
+        return;
+    }
+    fetch('/api/hooks/{{.Event}}/{{.Hook.Name}}/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: payload })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        document.getElementById('test-result').classList.remove('hidden');
+        var exitEl = document.getElementById('result-exit');
+        exitEl.textContent = data.exit_code;
+        exitEl.className = data.exit_code === 0 ? 'exit-code exit-code--ok' : 'exit-code exit-code--err';
+        document.getElementById('result-duration').textContent = data.duration_ms + 'ms';
+        document.getElementById('result-timeout-row').classList.toggle('hidden', !data.timed_out);
+        document.getElementById('result-stdout').textContent = data.stdout || '(empty)';
+        document.getElementById('result-stderr').textContent = data.stderr || '(empty)';
+    })
+    .catch(function(err) {
+        showToast('Test failed: ' + err, true);
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Run Test';
+    });
+}
+</script>
+{{end}}

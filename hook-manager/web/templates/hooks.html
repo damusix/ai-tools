@@ -1,0 +1,281 @@
+{{define "title"}} — Hooks{{end}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Page header -->
+    <div class="page-header flex items-center justify-between">
+        <div>
+            <h1 class="page-title">Hooks</h1>
+            <p class="page-description">Configure event-driven hooks for your Claude Code sessions.</p>
+        </div>
+        <button id="new-hook-btn" onclick="document.getElementById('new-hook-form').classList.toggle('hidden')" class="btn-primary">
+            New Hook
+        </button>
+    </div>
+
+    <!-- New Hook Form (hidden by default) -->
+    <div id="new-hook-form" class="hidden surface-elevated surface--padded">
+        <h2 class="form-title">Create New Hook</h2>
+        <p class="form-hint">A hook runs your script or command when a Claude Code event fires. Scripts receive the event payload as JSON on stdin and return JSON on stdout.</p>
+        <form id="create-hook-form" class="form-stack">
+
+            <!-- Row 1: Event + Name -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="form-group">
+                    <label class="form-label">Event</label>
+                    <select name="event" required class="input w-full">
+                        <option value="">Select event...</option>
+                        {{range .Events}}
+                        <option value="{{.Name}}" data-description="{{.Desc}}">{{.Name}}</option>
+                        {{end}}
+                    </select>
+                    <p class="form-hint">The Claude Code lifecycle event that triggers this hook.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" name="name" required placeholder="my-hook" class="input">
+                    <p class="form-hint">A unique identifier for this hook. Use lowercase with dashes.</p>
+                </div>
+            </div>
+
+            <!-- Row 2: Type selector (radio cards) -->
+            <div class="form-group">
+                <label class="form-label form-label--spaced">Type</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label id="type-command-card" class="type-card active" onclick="selectHookType('command')">
+                        <input type="radio" name="type" value="command" checked>
+                        <div class="type-card-title"><span class="badge-command">cmd</span> Command</div>
+                        <div class="type-card-desc">Run any shell command. It receives the hook payload on stdin and returns JSON on stdout. Exit code 2 blocks the action.</div>
+                    </label>
+                    <label id="type-managed-card" class="type-card" onclick="selectHookType('managed')">
+                        <input type="radio" name="type" value="managed">
+                        <div class="type-card-title"><span class="badge-managed">script</span> Managed Script</div>
+                        <div class="type-card-desc">Pick a script from your scripts folder. The runtime is auto-detected from the file extension and hashbang. Edit scripts in the browser.</div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Command field (shown for "command" type) -->
+            <div id="new-command-field" class="form-group">
+                <label class="form-label">Command</label>
+                <input type="text" name="command" placeholder="echo '{&quot;systemMessage&quot;:&quot;hello&quot;}'" class="input input--mono">
+                <p class="form-hint">Shell command to run via <code>sh -c</code>. Receives JSON on stdin. Write JSON to stdout, debug logs to stderr.</p>
+            </div>
+
+            <!-- Managed script field (shown for "managed" type) -->
+            <div id="new-managed-fields" class="hidden form-group">
+                <label class="form-label">Script</label>
+                {{if .Scripts}}
+                <select name="file" class="input w-full">
+                    {{range .Scripts}}
+                    <option value="{{.Filename}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Filename}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint">From <code>~/.ai-hooks/scripts/</code>. Runtime is auto-detected from the file extension. <a href="/scripts">Create a new script</a>.</p>
+                {{else}}
+                <div class="empty-card-dashed">
+                    <p class="empty-card-text">No scripts created yet.</p>
+                    <a href="/scripts" class="btn-secondary btn-ghost--sm btn-inline">Go to Scripts</a>
+                </div>
+                <input type="hidden" name="file" value="">
+                {{end}}
+            </div>
+
+            <!-- Row 4: Matcher + Timeout -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="form-label">Matcher <span class="form-label-optional">(optional)</span></label>
+                    <input type="text" name="matcher" placeholder=".*" class="input input--mono">
+                    <p class="form-hint">Regex to filter which invocations trigger this hook. For tool events, matches against tool name (e.g. <code>Bash|Write</code>). Leave empty to match all.</p>
+                </div>
+                <div>
+                    <label class="form-label">Timeout <span class="form-label-optional">(seconds)</span></label>
+                    <input type="number" name="timeout" value="10" min="1" class="input">
+                    <p class="form-hint">Max execution time before the script is killed. Timed-out hooks are treated as non-blocking errors.</p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 form-divider">
+                <button type="submit" class="btn-primary">Create Hook</button>
+                <button type="button" onclick="document.getElementById('new-hook-form').classList.add('hidden')" class="btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Hooks grouped by event -->
+    <div id="hooks-list" class="space-y-5">
+        {{if .Hooks}}
+        {{range $event, $hooks := .Hooks}}
+        {{if gt (len $hooks) 0}}
+        <div class="surface surface--flush">
+            <div class="event-header">
+                <span class="badge-event">{{$event}}</span>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Command / File</th>
+                        <th>Matcher</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range $hooks}}
+                    <tr id="hook-row-{{$event}}-{{.Name}}">
+                        <td>
+                            <a href="/hooks/{{$event}}/{{.Name}}" class="link link--bold">{{.Name}}</a>
+                        </td>
+                        <td>
+                            {{if eq .Type "managed"}}
+                            <span class="badge-managed">managed</span>
+                            {{else}}
+                            <span class="badge-command">command</span>
+                            {{end}}
+                        </td>
+                        <td class="td-mono">
+                            {{if eq .Type "managed"}}{{.File}}{{else}}{{.Command}}{{end}}
+                        </td>
+                        <td class="td-matcher">{{if .Matcher}}{{.Matcher}}{{else}}<span class="color-muted">*</span>{{end}}</td>
+                        <td>
+                            <button onclick="toggleHookEnabled('{{$event}}', '{{.Name}}', this)"
+                                class="{{if .IsEnabled}}toggle-on{{else}}toggle-off{{end}}">
+                                {{if .IsEnabled}}ON{{else}}OFF{{end}}
+                            </button>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <a href="/hooks/{{$event}}/{{.Name}}" class="btn-ghost btn-ghost--sm">Edit</a>
+                                <button onclick="deleteHook('{{$event}}', '{{.Name}}')" class="btn-ghost btn-ghost--sm btn-ghost--danger">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{end}}
+        {{end}}
+        {{else}}
+        <div class="surface">
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                </div>
+                <div class="empty-state-text">No hooks configured yet. Click "New Hook" to create one.</div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<div id="toast" class="toast hidden toast-success"></div>
+
+<script>
+function selectHookType(type) {
+    var isManaged = type === 'managed';
+    var cmdCard = document.getElementById('type-command-card');
+    var mngCard = document.getElementById('type-managed-card');
+    var cmdFields = document.getElementById('new-command-field');
+    var mngFields = document.getElementById('new-managed-fields');
+
+    cmdCard.querySelector('input').checked = !isManaged;
+    mngCard.querySelector('input').checked = isManaged;
+    cmdCard.classList.toggle('active', !isManaged);
+    mngCard.classList.toggle('active', isManaged);
+
+    cmdFields.classList.toggle('hidden', isManaged);
+    mngFields.classList.toggle('hidden', !isManaged);
+}
+
+function showToast(msg, isError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
+    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+}
+
+function toggleHookEnabled(event, name, btn) {
+    fetch('/api/hooks/' + event + '/' + name)
+    .then(function() {
+        // Get all hooks for this event to find the right one
+        return fetch('/api/hooks');
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(hooks) {
+        var eventHooks = hooks[event] || [];
+        var hook = null;
+        for (var i = 0; i < eventHooks.length; i++) {
+            if (eventHooks[i].name === name) {
+                hook = eventHooks[i];
+                break;
+            }
+        }
+        if (!hook) return;
+        var isEnabled = hook.enabled === undefined || hook.enabled === null || hook.enabled === true;
+        hook.enabled = !isEnabled;
+        return fetch('/api/hooks/' + event + '/' + name, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(hook)
+        });
+    })
+    .then(function(r) {
+        if (r && r.ok) {
+            location.reload();
+        } else {
+            showToast('Failed to toggle hook', true);
+        }
+    });
+}
+
+function deleteHook(event, name) {
+    if (!confirm('Delete hook "' + name + '" from event "' + event + '"?')) return;
+    fetch('/api/hooks/' + event + '/' + name, { method: 'DELETE' })
+    .then(function(r) {
+        if (r.ok) {
+            var row = document.getElementById('hook-row-' + event + '-' + name);
+            if (row) row.remove();
+            showToast('Hook deleted');
+        } else {
+            showToast('Failed to delete hook', true);
+        }
+    });
+}
+
+document.getElementById('create-hook-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var type = form.querySelector('[name=type]').value;
+    var hook = {
+        name: form.querySelector('[name=name]').value,
+        type: type,
+        matcher: form.querySelector('[name=matcher]').value,
+        timeout: parseInt(form.querySelector('[name=timeout]').value) || 10
+    };
+    if (type === 'command') {
+        hook.command = form.querySelector('[name=command]').value;
+    } else {
+        hook.file = form.querySelector('[name=file]').value;
+        // Runtime auto-detected from file extension server-side
+    }
+    fetch('/api/hooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            event: form.querySelector('[name=event]').value,
+            hook: hook
+        })
+    }).then(function(r) {
+        if (r.ok) {
+            location.reload();
+        } else {
+            r.text().then(function(t) { showToast('Error: ' + t, true); });
+        }
+    });
+});
+</script>
+{{end}}

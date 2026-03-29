@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hook Manager{{block "title" .}} — Dashboard{{end}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/htmx.min.js"></script>
+    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    {{template "nav" .}}
+    <main id="content" class="max-w-7xl mx-auto px-6 py-8">
+        {{block "content" .}}{{end}}
+    </main>
+
+    <!-- Log Drawer (global, accessible from any page) -->
+    <div id="log-drawer-overlay" class="log-drawer-overlay" onclick="closeLogDrawer()"></div>
+    <aside id="log-drawer" class="log-drawer">
+        <div class="log-drawer-header">
+            <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+                <span class="log-drawer-title">Server Logs</span>
+                <span id="log-drawer-count" class="log-drawer-count"></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="log-drawer-search" placeholder="Filter..." class="input log-drawer-search">
+                <button onclick="closeLogDrawer()" class="btn-ghost log-drawer-close">&times;</button>
+            </div>
+        </div>
+        <div id="log-drawer-content" class="log-drawer-content">
+            <div class="loading-state">Loading...</div>
+        </div>
+    </aside>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="/static/dropdown.js"></script>
+
+    <!-- Log Drawer JS -->
+    <script>
+    var logDrawerSSE = null;
+
+    function openLogDrawer() {
+        document.getElementById('log-drawer').classList.add('open');
+        document.getElementById('log-drawer-overlay').classList.add('open');
+        document.addEventListener('keydown', logDrawerEsc);
+
+        var content = document.getElementById('log-drawer-content');
+        content.innerHTML = '<div class="loading-state">Loading...</div>';
+
+        fetch('/api/logs?limit=500&tail=1')
+        .then(function(r) { return r.json(); })
+        .then(function(entries) {
+            content.innerHTML = '';
+            if (!entries || entries.length === 0) {
+                content.innerHTML = '<div class="loading-state">No log entries yet.</div>';
+            } else {
+                for (var i = 0; i < entries.length; i++) {
+                    content.appendChild(makeLogEl(entries[i]));
+                }
+                document.getElementById('log-drawer-count').textContent = entries.length + ' entries';
+            }
+            content.scrollTop = content.scrollHeight;
+            connectLogSSE();
+        })
+        .catch(function() {
+            content.innerHTML = '<div class="loading-state">Failed to load logs.</div>';
+            connectLogSSE();
+        });
+    }
+
+    function closeLogDrawer() {
+        document.getElementById('log-drawer').classList.remove('open');
+        document.getElementById('log-drawer-overlay').classList.remove('open');
+        document.removeEventListener('keydown', logDrawerEsc);
+        if (logDrawerSSE) { logDrawerSSE.close(); logDrawerSSE = null; }
+    }
+
+    function logDrawerEsc(e) { if (e.key === 'Escape') closeLogDrawer(); }
+
+    function connectLogSSE() {
+        if (logDrawerSSE) logDrawerSSE.close();
+        logDrawerSSE = new EventSource('/api/logs/stream');
+        logDrawerSSE.onmessage = function(ev) {
+            try {
+                var entry = JSON.parse(ev.data);
+                var content = document.getElementById('log-drawer-content');
+                var wasAtBottom = content.scrollHeight - content.scrollTop - content.clientHeight < 50;
+                var el = makeLogEl(entry);
+
+                var search = document.getElementById('log-drawer-search').value.toLowerCase();
+                if (search && el.textContent.toLowerCase().indexOf(search) === -1) {
+                    el.classList.add('hidden');
+                }
+                content.appendChild(el);
+
+                if (wasAtBottom) content.scrollTop = content.scrollHeight;
+            } catch(err) {}
+        };
+    }
+
+    function makeLogEl(entry) {
+        var el = document.createElement('div');
+        el.className = 'log-entry';
+        var t = '';
+        if (entry.timestamp) {
+            var d = new Date(entry.timestamp);
+            t = d.toLocaleTimeString('en-US', { hour12: false });
+        }
+        var cat = entry.category || 'hook';
+        if (cat === 'request') {
+            var statusCls = entry.status >= 500 ? 'log-entry-exit-err' : entry.status >= 400 ? 'log-entry-exit-warn' : 'log-entry-exit-ok';
+            el.innerHTML =
+                '<span class="log-entry-time">' + t + '</span>' +
+                '<span class="log-entry-method">' + (entry.method || '') + '</span>' +
+                '<span class="log-entry-hook">' + (entry.path || '') + '</span>' +
+                '<span class="' + statusCls + '">' + entry.status + '</span>' +
+                '<span class="log-entry-duration">' + (entry.duration_ms || 0) + 'ms</span>';
+        } else if (cat === 'server') {
+            var lvlCls = entry.level === 'error' ? 'log-entry-exit-err' : entry.level === 'warn' ? 'log-entry-exit-warn' : 'log-entry-exit-ok';
+            el.innerHTML =
+                '<span class="log-entry-time">' + t + '</span>' +
+                '<span class="' + lvlCls + ' log-entry-level">' + (entry.level || 'info') + '</span>' +
+                '<span class="log-entry-hook">' + (entry.message || '') + '</span>';
+        } else {
+            var exitOk = entry.exit_code === 0;
+            el.innerHTML =
+                '<span class="log-entry-time">' + t + '</span>' +
+                '<span class="log-entry-event">' + (entry.event || '') + '</span>' +
+                '<span class="log-entry-hook">' + (entry.hook || '') + '</span>' +
+                '<span class="' + (exitOk ? 'log-entry-exit-ok' : 'log-entry-exit-err') + '">' + (exitOk ? '\u2713' : '\u2717 ' + entry.exit_code) + '</span>' +
+                '<span class="log-entry-duration">' + (entry.duration_ms || 0) + 'ms</span>';
+        }
+        return el;
+    }
+
+    document.getElementById('log-drawer-search').addEventListener('input', function() {
+        var search = this.value.toLowerCase();
+        var entries = document.querySelectorAll('#log-drawer-content .log-entry');
+        for (var i = 0; i < entries.length; i++) {
+            if (!search || entries[i].textContent.toLowerCase().indexOf(search) !== -1) {
+                entries[i].classList.remove('hidden');
+            } else {
+                entries[i].classList.add('hidden');
+            }
+        }
+    });
+    </script>
+</body>
+</html>

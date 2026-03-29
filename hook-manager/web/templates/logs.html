@@ -1,0 +1,128 @@
+{{define "title"}} — Logs{{end}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Page header -->
+    <div class="page-header flex items-center justify-between">
+        <div>
+            <h1 class="page-title">Log Viewer</h1>
+            <p class="page-description">What your hooks did — execution results, exit codes, and timing after each hook runs.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <label class="flex items-center gap-2 cursor-pointer toggle-label">
+                <div>
+                    <input type="checkbox" id="live-toggle" onchange="toggleLiveTail()" class="toggle-checkbox">
+                </div>
+                Live Tail
+            </label>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="surface filter-bar">
+        <form id="filter-form" class="flex flex-wrap items-end gap-4">
+            <div>
+                <label class="filter-label">Category</label>
+                <select name="category" class="input input--auto input--min-160">
+                    <option value="">All</option>
+                    <option value="hook">Hook</option>
+                    <option value="request">Request</option>
+                    <option value="server">Server</option>
+                </select>
+            </div>
+            <div>
+                <label class="filter-label">Event</label>
+                <select name="event" class="input input--auto input--min-160">
+                    <option value="">All Events</option>
+                    {{range .Events}}
+                    <option value="{{.Name}}" data-description="{{.Desc}}">{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div>
+                <label class="filter-label">Hook Name</label>
+                <input type="text" name="hook" placeholder="Filter by hook name..." class="input input--auto input--min-200">
+            </div>
+            <div>
+                <label class="filter-label">Limit</label>
+                <select name="limit" class="input input--auto input--min-80">
+                    <option value="20">20</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="500">500</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary">Filter</button>
+        </form>
+    </div>
+
+    <!-- Live Tail Section (hidden by default) -->
+    <div id="live-tail-section" class="hidden">
+        <div class="surface surface--flush">
+            <div class="event-header">
+                <span class="live-indicator"></span>
+                <span class="live-text">Live tail connected</span>
+            </div>
+            <div id="live-log" class="live-log"
+                hx-ext="sse" sse-connect="/api/logs/stream" sse-swap="message" hx-swap="afterbegin">
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Table -->
+    <div id="log-table-section" class="surface surface--flush">
+        <div id="log-table-container"
+            hx-get="/ui/logs-partial?limit=50"
+            hx-trigger="load"
+            hx-swap="innerHTML">
+            <div class="loading-state--lg">Loading logs...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('filter-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var params = new URLSearchParams();
+    var category = form.querySelector('[name=category]').value;
+    var event = form.querySelector('[name=event]').value;
+    var hook = form.querySelector('[name=hook]').value;
+    var limit = form.querySelector('[name=limit]').value;
+    if (category) params.set('category', category);
+    if (event) params.set('event', event);
+    if (hook) params.set('hook', hook);
+    if (limit) params.set('limit', limit);
+
+    var container = document.getElementById('log-table-container');
+    container.innerHTML = '<div class="loading-state--lg">Loading...</div>';
+
+    fetch('/ui/logs-partial?' + params.toString())
+    .then(function(r) { return r.text(); })
+    .then(function(html) {
+        container.innerHTML = html;
+    });
+});
+
+function toggleLiveTail() {
+    var checked = document.getElementById('live-toggle').checked;
+    document.getElementById('live-tail-section').classList.toggle('hidden', !checked);
+    if (!checked) {
+        // Disconnect SSE by removing and re-adding the element without sse attributes
+        var liveLog = document.getElementById('live-log');
+        liveLog.removeAttribute('hx-ext');
+        liveLog.removeAttribute('sse-connect');
+        liveLog.removeAttribute('sse-swap');
+        liveLog.innerHTML = '';
+        htmx.process(liveLog);
+    } else {
+        // Reconnect SSE
+        var liveLog = document.getElementById('live-log');
+        liveLog.setAttribute('hx-ext', 'sse');
+        liveLog.setAttribute('sse-connect', '/api/logs/stream');
+        liveLog.setAttribute('sse-swap', 'message');
+        liveLog.setAttribute('hx-swap', 'afterbegin');
+        htmx.process(liveLog);
+    }
+}
+</script>
+{{end}}

@@ -37,6 +37,21 @@
                 "compound-commands",
                 "auto-approve"
             ]
+        },
+        {
+            "name": "hook-manager",
+            "version": "0.1.0",
+            "source": "./hook-manager",
+            "description": "Universal hook orchestrator with web UI",
+            "author": {
+                "name": "Danilo Alonso"
+            },
+            "keywords": [
+                "hooks",
+                "orchestrator",
+                "ui",
+                "management"
+            ]
         }
     ]
 }
