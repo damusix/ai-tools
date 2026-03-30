@@ -21,7 +21,7 @@
             <!-- Row 1: Event + Name -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div class="form-group">
-                    <label class="form-label">Event</label>
+                    <label class="form-label">Event <button onclick="openHelpDrawer('events')" class="help-info-btn" title="Event reference"><i class="fa-regular fa-circle-question"></i></button></label>
                     <select name="event" required class="input w-full">
                         <option value="">Select event...</option>
                         {{range .Events}}
@@ -44,7 +44,7 @@
                     <label id="type-command-card" class="type-card active" onclick="selectHookType('command')">
                         <input type="radio" name="type" value="command" checked>
                         <div class="type-card-title"><span class="badge-command">cmd</span> Command</div>
-                        <div class="type-card-desc">Run any shell command. It receives the hook payload on stdin and returns JSON on stdout. Exit code 2 blocks the action.</div>
+                        <div class="type-card-desc">Run any shell command. It receives the hook payload on stdin and returns JSON on stdout. Exit code 2 blocks the action. <button onclick="event.preventDefault();openHelpDrawer('scripts')" class="help-info-btn" title="How scripts work"><i class="fa-regular fa-circle-question"></i></button></div>
                     </label>
                     <label id="type-managed-card" class="type-card" onclick="selectHookType('managed')">
                         <input type="radio" name="type" value="managed">
@@ -83,14 +83,14 @@
             <!-- Row 4: Matcher + Timeout -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="form-label">Matcher <span class="form-label-optional">(optional)</span></label>
+                    <label class="form-label">Matcher <span class="form-label-optional">(optional)</span> <button onclick="openHelpDrawer('matchers')" class="help-info-btn" title="How matchers work"><i class="fa-regular fa-circle-question"></i></button></label>
                     <input type="text" name="matcher" placeholder=".*" class="input input--mono">
                     <p class="form-hint">Regex to filter which invocations trigger this hook. For tool events, matches against tool name (e.g. <code>Bash|Write</code>). Leave empty to match all.</p>
                 </div>
                 <div>
                     <label class="form-label">Timeout <span class="form-label-optional">(seconds)</span></label>
                     <input type="number" name="timeout" value="10" min="1" class="input">
-                    <p class="form-hint">Max execution time before the script is killed. Timed-out hooks are treated as non-blocking errors.</p>
+                    <p class="form-hint">Max execution time before the script is killed. Timed-out hooks are treated as non-blocking errors. <button onclick="openHelpDrawer('blocking')" class="help-info-btn" title="How blocking works"><i class="fa-regular fa-circle-question"></i></button></p>
                 </div>
             </div>
 

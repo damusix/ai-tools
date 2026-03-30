@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
 </head>
 <body>
     {{template "nav" .}}
@@ -37,6 +38,21 @@
             </div>
         </div>
         <div id="log-drawer-content" class="log-drawer-content">
+            <div class="loading-state">Loading...</div>
+        </div>
+    </aside>
+
+    <!-- Help Drawer (global, accessible from any page) -->
+    <div id="help-drawer-overlay" class="help-drawer-overlay" onclick="closeHelpDrawer()"></div>
+    <aside id="help-drawer" class="help-drawer">
+        <div class="help-drawer-header">
+            <div class="flex items-center gap-2">
+                <i class="fa-regular fa-circle-question" style="color:var(--accent);font-size:14px"></i>
+                <span class="help-drawer-title">Help</span>
+            </div>
+            <button onclick="closeHelpDrawer()" class="btn-ghost help-drawer-close">&times;</button>
+        </div>
+        <div id="help-drawer-content" class="help-drawer-content help-prose">
             <div class="loading-state">Loading...</div>
         </div>
     </aside>
@@ -157,6 +173,59 @@
             }
         }
     });
+    </script>
+
+    <!-- Help Drawer JS -->
+    <script>
+    var _helpCache = {};
+
+    function openHelpDrawer(topic) {
+        document.getElementById('help-drawer').classList.add('open');
+        document.getElementById('help-drawer-overlay').classList.add('open');
+        document.addEventListener('keydown', _helpDrawerEsc);
+
+        var content = document.getElementById('help-drawer-content');
+
+        if (_helpCache[topic]) {
+            content.innerHTML = _helpCache[topic];
+            highlightHelpCode();
+            return;
+        }
+
+        content.innerHTML = '<div class="loading-state">Loading...</div>';
+
+        fetch('/api/help/' + encodeURIComponent(topic))
+        .then(function(r) {
+            if (!r.ok) throw new Error('Not found');
+            return r.text();
+        })
+        .then(function(md) {
+            var html = marked.parse(md);
+            _helpCache[topic] = html;
+            content.innerHTML = html;
+            highlightHelpCode();
+        })
+        .catch(function() {
+            content.innerHTML = '<div class="loading-state">Failed to load help content.</div>';
+        });
+    }
+
+    function closeHelpDrawer() {
+        document.getElementById('help-drawer').classList.remove('open');
+        document.getElementById('help-drawer-overlay').classList.remove('open');
+        document.removeEventListener('keydown', _helpDrawerEsc);
+    }
+
+    function _helpDrawerEsc(e) { if (e.key === 'Escape') closeHelpDrawer(); }
+
+    function highlightHelpCode() {
+        if (typeof Prism !== 'undefined') {
+            var blocks = document.querySelectorAll('#help-drawer-content pre code');
+            for (var i = 0; i < blocks.length; i++) {
+                Prism.highlightElement(blocks[i]);
+            }
+        }
+    }
     </script>
 </body>
 </html>

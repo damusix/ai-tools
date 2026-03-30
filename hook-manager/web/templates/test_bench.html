@@ -4,7 +4,7 @@
     <!-- Page header -->
     <div class="page-header">
         <h1 class="page-title">Test Bench</h1>
-        <p class="page-description">Fire hook events with custom payloads and inspect the response.</p>
+        <p class="page-description">Fire hook events with custom payloads and inspect the response. <button onclick="openHelpDrawer('test-bench')" class="help-info-btn" title="How the Test Bench works"><i class="fa-regular fa-circle-question"></i></button></p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -14,7 +14,7 @@
                 <h2 class="section-title-sm">Request</h2>
                 <div class="space-y-4">
                     <div>
-                        <label class="form-label">Event Type</label>
+                        <label class="form-label">Event Type <button onclick="openHelpDrawer('events')" class="help-info-btn" title="Event reference"><i class="fa-regular fa-circle-question"></i></button></label>
                         <select id="event-select" onchange="loadSamplePayload()" class="input">
                             {{range .Events}}
                             <option value="{{.Name}}" data-description="{{.Desc}}">{{.Name}}</option>

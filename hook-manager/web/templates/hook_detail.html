@@ -49,7 +49,7 @@
                     <input type="text" name="runtime" value="{{.Hook.Runtime}}" class="input">
                 </div>
                 <div>
-                    <label class="form-label">Matcher (regex)</label>
+                    <label class="form-label">Matcher (regex) <button onclick="openHelpDrawer('matchers')" class="help-info-btn" title="How matchers work"><i class="fa-regular fa-circle-question"></i></button></label>
                     <input type="text" name="matcher" value="{{.Hook.Matcher}}" class="input">
                 </div>
                 <div>
@@ -72,7 +72,7 @@
         </h2>
         <div class="space-y-4">
             <div>
-                <label class="form-label">JSON Payload</label>
+                <label class="form-label">JSON Payload <button onclick="openHelpDrawer('scripts')" class="help-info-btn" title="Script inputs &amp; outputs"><i class="fa-regular fa-circle-question"></i></button></label>
                 <textarea id="test-payload" rows="6" placeholder='{"tool_name":"Bash","tool_input":{"command":"ls"}}' class="input input--mono">{{.SamplePayload}}</textarea>
             </div>
             <button id="test-btn" onclick="testHook()" class="btn-primary btn-test">

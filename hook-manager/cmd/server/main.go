@@ -20,6 +20,7 @@ import (
 	"github.com/damusix/hook-manager/internal/logger"
 	"github.com/damusix/hook-manager/internal/runtime"
 	"github.com/damusix/hook-manager/internal/ui"
+	"github.com/damusix/hook-manager/web"
 )
 
 var (
@@ -319,6 +320,33 @@ func run() int {
 			return
 		}
 		apiHandler.GetHookTypes(w, r)
+	})
+
+	// Help content (markdown files)
+	mux.HandleFunc("/api/help/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		topic := strings.TrimPrefix(r.URL.Path, "/api/help/")
+		// Validate: only lowercase letters and hyphens
+		for _, c := range topic {
+			if !((c >= 'a' && c <= 'z') || c == '-') {
+				http.Error(w, "invalid topic", http.StatusBadRequest)
+				return
+			}
+		}
+		if topic == "" {
+			http.Error(w, "topic required", http.StatusBadRequest)
+			return
+		}
+		data, err := web.HelpFS.ReadFile("help/" + topic + ".md")
+		if err != nil {
+			http.Error(w, "topic not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write(data)
 	})
 
 	// Start server

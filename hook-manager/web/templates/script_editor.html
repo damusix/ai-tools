@@ -9,7 +9,7 @@
             </a>
             <span class="breadcrumb-text">Scripts</span>
             <span class="breadcrumb-text">/</span>
-            <div>
+            <div class="flex items-center gap-3">
                 <div class="script-nav-dropdown" id="script-nav">
                     <button type="button" class="script-nav-trigger" onclick="toggleScriptNav()">
                         <h1 class="breadcrumb-filename">{{.Filename}}</h1>
@@ -17,6 +17,8 @@
                     </button>
                     <div class="script-nav-panel" id="script-nav-panel"></div>
                 </div>
+                <button onclick="openHelpDrawer('scripts')" class="help-info-btn" title="Script inputs &amp; outputs"><i class="fa-regular fa-circle-question"></i></button>
+                <span class="script-description-sep">&mdash;</span>
                 <input id="script-description" type="text" value="{{.Description}}" placeholder="Add a description..." onblur="saveDescription()" class="script-description-input">
             </div>
         </div>
@@ -43,6 +45,7 @@
         <div class="console-header">
             <div class="flex items-center gap-3">
                 <span class="console-label">Console</span>
+                <button onclick="openHelpDrawer('scripts')" class="help-info-btn" title="Script inputs &amp; outputs"><i class="fa-regular fa-circle-question"></i></button>
                 <select id="console-event" class="input dropdown-sm input--auto" onchange="updateConsolePayload()">
                     {{range .Events}}
                     <option value="{{.Name}}" data-description="{{.Desc}}">{{.Name}}</option>
@@ -71,7 +74,7 @@
         <div class="console-body">
             <!-- Stdin Payload (left) -->
             <div class="console-stdin">
-                <div class="console-section-label">stdin payload</div>
+                <div class="console-section-label">stdin payload <button onclick="openHelpDrawer('events')" class="help-info-btn" title="Event payload reference"><i class="fa-regular fa-circle-question"></i></button></div>
                 <textarea id="console-payload" spellcheck="false" class="console-payload"></textarea>
             </div>
 
