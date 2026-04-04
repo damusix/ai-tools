@@ -56,6 +56,14 @@ const sections: Section[] = [
             { key: 'consolidateIntervalMs', label: 'Consolidation Interval', fallback: 60000, desc: 'ms between consolidation checks' },
         ],
     },
+    {
+        icon: 'flask-vial', label: 'Distillation', fields: [
+            { key: 'minAgeHours', label: 'Min Age (Hours)', fallback: 24, desc: 'hours between distillation runs' },
+            { key: 'minMemoriesSince', label: 'Min Memories Since', fallback: 5, desc: 'new memories before distillation triggers' },
+            { key: 'batchSize', label: 'Batch Size', fallback: 50, desc: 'memories per LLM call (per domain)' },
+            { key: 'purgeAfterHours', label: 'Purge After (Hours)', fallback: 168, desc: 'hours before deleted memories are permanently removed' },
+        ],
+    },
 ];
 
 // ── Icon helpers ───────────────────────────────────────────────────────
