@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1
+
+### Features
+
+- **show plugin version in dashboard header** [#703f1ed](https://github.com/damusix/ai-tools/commit/703f1ed9d849017cccbcabb7a6f83bb54c41754a)
 ## 1.5.0
 
 ### Features
