@@ -87,7 +87,8 @@ export function createApp(): Hono {
     });
 
     // ── Health check ────────────────────────────────────────────────
-    app.get('/health', (c) => c.json({ status: 'ok', pid: process.pid }));
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+    app.get('/health', (c) => c.json({ status: 'ok', pid: process.pid, version: pkg.version }));
 
     // ── HTTP API: Enqueue turn for observation extraction ───────────
     app.post('/enqueue', async (c) => {

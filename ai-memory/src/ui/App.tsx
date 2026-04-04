@@ -85,6 +85,9 @@ export const shortPath = (p: string) =>
 const MODAL_PARAMS = ['settings', 'merge', 'help', 'logs', 'memory'] as const;
 
 const App: Component = () => {
+    const [appVersion, setAppVersion] = createSignal('');
+    fetch('/health').then(r => r.json()).then(d => setAppVersion(d.version || '')).catch(() => {});
+
     const [project, setProject] = createSignal(localStorage.getItem(STORAGE_KEY) || '');
     const [refreshKey, setRefreshKey] = createSignal(0);
     const [deleteTarget, setDeleteTarget] = createSignal<{ type: string; id: number } | null>(null);
@@ -776,6 +779,9 @@ const App: Component = () => {
                         >
                             <i class="fa-brands fa-github" style="font-size: 16px"></i>
                         </a>
+                        <Show when={appVersion()}>
+                            <span class="text-[10px] text-neutral-600 font-mono">v{appVersion()}</span>
+                        </Show>
                     </div>
                     <div class="flex items-center gap-2">
                         <InfoBtn topic="about" hint="How ai-memory works and what it does." />
