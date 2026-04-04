@@ -52,6 +52,8 @@ export type Project = {
     git_root: string;
     git_url: string;
     consolidate: string;
+    distillation_at: string;
+    distillation_memories_since: number;
     created_at: string;
     observation_count: number;
     memory_count: number;
@@ -239,6 +241,41 @@ const App: Component = () => {
         setMemoryDetailOpen(false);
         setMemoryDetail(null);
         closeModalUrl();
+    };
+
+    const [deletedMemoryDetail, setDeletedMemoryDetail] = createSignal<(Memory & { deleted_at: string; deleted_reason: string }) | null>(null);
+    const [deletedMemoryDetailOpen, setDeletedMemoryDetailOpen] = createSignal(false);
+
+    const openDeletedMemoryDetail = (m: Memory & { deleted_at: string; deleted_reason: string }) => {
+        setDeletedMemoryDetail(m);
+        setDeletedMemoryDetailOpen(true);
+    };
+    const closeDeletedMemoryDetail = () => {
+        setDeletedMemoryDetailOpen(false);
+        setDeletedMemoryDetail(null);
+    };
+
+    const handleRestoreMemory = async (id: number) => {
+        await fetch(`/api/memories/${id}/restore`, { method: 'POST' });
+        showToast('Memory restored');
+        refresh();
+    };
+
+    const handlePermanentDeleteMemory = async (id: number) => {
+        await fetch(`/api/memories/${id}`, { method: 'DELETE' });
+        showToast('Memory permanently deleted');
+        refresh();
+    };
+
+    const triggerDistillation = async (projectId: number, projectPath: string) => {
+        setDistilling(prev => ({ ...prev, [projectPath]: true }));
+        try {
+            await fetch(`/api/projects/${projectId}/distillation`, { method: 'POST' });
+            showToast('Distillation queued');
+        } catch {
+            showToast('Failed to trigger distillation');
+        }
+        setDistilling(prev => ({ ...prev, [projectPath]: false }));
     };
 
     const handleMemoryUpdate = async (id: number, fields: {
@@ -456,12 +493,12 @@ const App: Component = () => {
     });
 
     // SSE real-time updates
-    for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated', 'summary:updated']) {
+    for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated', 'summary:updated', 'distillation:updated']) {
         listen(evt);
         sse.addEventListener(evt, refresh);
     }
     onCleanup(() => {
-        for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated', 'summary:updated']) {
+        for (const evt of ['memory:created', 'memory:deleted', 'observation:created', 'observation:deleted', 'counts:updated', 'summary:updated', 'distillation:updated']) {
             sse.removeEventListener(evt, refresh);
         }
     });
@@ -610,6 +647,16 @@ const App: Component = () => {
             return api<Observation[]>('/api/observations' + qs);
         },
     );
+
+    const [deletedMemories] = createResource(
+        () => ({ project: project(), key: refreshKey() }),
+        ({ project: p }) => {
+            const qs = p ? `?project=${encodeURIComponent(p)}` : '';
+            return api<(Memory & { deleted_at: string; deleted_reason: string })[]>('/api/memories/deleted' + qs);
+        },
+    );
+
+    const [distilling, setDistilling] = createSignal<Record<string, boolean>>({});
 
     const [stats] = createResource(
         () => ({ project: project(), key: refreshKey() }),
@@ -913,6 +960,37 @@ const App: Component = () => {
                                 )}
                             </For>
                         </Show>
+                        {/* Deleted memories section */}
+                        <Show when={(deletedMemories()?.length ?? 0) > 0}>
+                            <h2 class="text-sm font-semibold text-neutral-300 mt-6 mb-3 flex items-center gap-2">
+                                <Icon name="trash" size={14} class="text-red-400/70" />
+                                Deleted Memories
+                                <span class="text-xs text-red-300/50">({deletedMemories()!.length})</span>
+                                <InfoBtn topic="deleted-memories" hint="Memories flagged for deletion by distillation. Click for details." />
+                            </h2>
+                            <div class="flex flex-col gap-2">
+                                <For each={deletedMemories()}>
+                                    {(m) => (
+                                        <div
+                                            class="rounded-lg border border-neutral-700/50 bg-neutral-800/40 p-3 cursor-pointer hover:bg-neutral-800/80 hover:border-red-400/20 transition-colors group"
+                                            onClick={() => openDeletedMemoryDetail(m)}
+                                        >
+                                            <p class="text-xs text-neutral-300 leading-relaxed max-h-20 overflow-hidden">{m.content}</p>
+                                            <Show when={m.deleted_reason}>
+                                                <p class="text-[10px] text-red-300/50 italic mt-1.5 leading-relaxed">{m.deleted_reason}</p>
+                                            </Show>
+                                            <div class="text-[10px] text-neutral-600 mt-2 flex items-center gap-1">
+                                                <span>#{m.id}</span>
+                                                <span>·</span>
+                                                <span>{shortPath(m.project_path)}</span>
+                                                <span>·</span>
+                                                <span>{new Date(m.deleted_at).toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </For>
+                            </div>
+                        </Show>
                     </aside>
 
                     {/* Memories main panel */}
@@ -1135,27 +1213,52 @@ const App: Component = () => {
                                                                     </Show>
                                                                 </div>
                                                             </Show>
-                                                            <div class="flex items-center gap-2">
-                                                                <span class="text-[10px] text-neutral-500">Consolidation:</span>
-                                                                <InfoBtn topic="consolidation" hint="Auto-merge subfolder projects into the git root. Click for details." />
-                                                                <For each={[
-                                                                    { value: '' as const, label: 'Default' },
-                                                                    { value: 'yes' as const, label: 'Always' },
-                                                                    { value: 'no' as const, label: 'Never' },
-                                                                ]}>
-                                                                    {(opt) => (
-                                                                        <button
-                                                                            class={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                                                                                proj.consolidate === opt.value
-                                                                                    ? 'bg-cyan-500/15 text-cyan-400'
-                                                                                    : 'text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800'
-                                                                            }`}
-                                                                            onClick={() => setConsolidate(proj.id, opt.value)}
-                                                                        >
-                                                                            {opt.label}
-                                                                        </button>
-                                                                    )}
-                                                                </For>
+                                                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class="text-[10px] text-neutral-500">Consolidation:</span>
+                                                                    <InfoBtn topic="consolidation" hint="Auto-merge subfolder projects into the git root. Click for details." />
+                                                                    <For each={[
+                                                                        { value: '' as const, label: 'Default' },
+                                                                        { value: 'yes' as const, label: 'Always' },
+                                                                        { value: 'no' as const, label: 'Never' },
+                                                                    ]}>
+                                                                        {(opt) => (
+                                                                            <button
+                                                                                class={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                                                                                    proj.consolidate === opt.value
+                                                                                        ? 'bg-cyan-500/15 text-cyan-400'
+                                                                                        : 'text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800'
+                                                                                }`}
+                                                                                onClick={() => setConsolidate(proj.id, opt.value)}
+                                                                            >
+                                                                                {opt.label}
+                                                                            </button>
+                                                                        )}
+                                                                    </For>
+                                                                </div>
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class="text-[10px] text-neutral-500">Distillation:</span>
+                                                                    <InfoBtn topic="deleted-memories" hint="Review memories against codebase for staleness. Flagged memories are hidden and purged after the grace period." />
+                                                                    <button
+                                                                        class={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                                                                            distilling()[proj.path]
+                                                                                ? 'text-neutral-600 cursor-not-allowed'
+                                                                                : 'border border-purple-400/20 text-purple-400 hover:bg-purple-400/10'
+                                                                        }`}
+                                                                        disabled={distilling()[proj.path]}
+                                                                        onClick={() => triggerDistillation(proj.id, proj.path)}
+                                                                    >
+                                                                        {distilling()[proj.path] ? 'Distilling...' : 'Run Now'}
+                                                                    </button>
+                                                                    <span class="text-[10px] text-neutral-600">
+                                                                        {distilling()[proj.path]
+                                                                            ? ''
+                                                                            : proj.distillation_at
+                                                                                ? `Last: ${new Date(proj.distillation_at).toLocaleDateString()}`
+                                                                                : 'Never run'
+                                                                        }
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
@@ -1342,6 +1445,19 @@ const App: Component = () => {
                 onClose={closeMemoryDetail}
                 onUpdate={handleMemoryUpdate}
                 showToast={showToast}
+            />
+
+            <MemoryDetailModal
+                memory={deletedMemoryDetail()}
+                domains={taxonomyDomains()}
+                categories={taxonomyCategories()}
+                open={deletedMemoryDetailOpen()}
+                onClose={closeDeletedMemoryDetail}
+                onUpdate={async () => {}}
+                onRestore={handleRestoreMemory}
+                onPermanentDelete={handlePermanentDeleteMemory}
+                showToast={showToast}
+                mode="deleted"
             />
 
                 <ArchitectureModal
