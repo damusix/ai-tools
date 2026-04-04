@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, mkdtempSync } from 'node:fs';
+import { rmSync, mkdtempSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { stringify } from 'yaml';
 import { loadConfig, writeConfigYaml, configSchema } from '../src/config.js';
 
 let TMP: string;
@@ -59,6 +60,34 @@ describe('config', () => {
         const path = join(TMP, 'invalid.yaml');
         writeConfigYaml(path, { worker: { pollIntervalMs: -1 } });
         expect(() => loadConfig(path)).toThrow();
+    });
+
+    describe('distillation config', () => {
+        it('provides defaults when no distillation section exists', () => {
+            const config = loadConfig(join(TMP, 'nonexistent-distill.yaml'));
+            expect(config.distillation).toEqual({
+                minAgeHours: 24,
+                minMemoriesSince: 5,
+                batchSize: 50,
+                purgeAfterHours: 168,
+            });
+        });
+
+        it('allows overriding distillation settings', () => {
+            const tmpConfig = join(TMP, `distillation-cfg-${Date.now()}.yaml`);
+            writeFileSync(tmpConfig, stringify({
+                distillation: { minAgeHours: 48, minMemoriesSince: 10 },
+            }));
+            try {
+                const config = loadConfig(tmpConfig);
+                expect(config.distillation.minAgeHours).toBe(48);
+                expect(config.distillation.minMemoriesSince).toBe(10);
+                expect(config.distillation.batchSize).toBe(50); // default preserved
+                expect(config.distillation.purgeAfterHours).toBe(168); // default preserved
+            } finally {
+                unlinkSync(tmpConfig);
+            }
+        });
     });
 
     it('writeConfigYaml writes valid YAML that can be read back', () => {

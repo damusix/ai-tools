@@ -61,6 +61,13 @@ const projectsSchema = z.object({
     consolidateIntervalMs: z.number().min(10000).default(60000),
 });
 
+const distillationSchema = z.object({
+    minAgeHours: z.number().min(1).default(24),
+    minMemoriesSince: z.number().min(1).default(5),
+    batchSize: z.number().min(1).default(50),
+    purgeAfterHours: z.number().min(1).default(168),
+});
+
 export const configSchema = z.object({
     worker: workerSchema.default({}),
     context: contextSchema.default({}),
@@ -68,6 +75,7 @@ export const configSchema = z.object({
     server: serverSchema.default({}),
     api: apiSchema.default({}),
     projects: projectsSchema.default({}),
+    distillation: distillationSchema.default({}),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -88,7 +96,8 @@ function applyDefaults(raw: Record<string, unknown>): AppConfig {
     const server = serverSchema.parse(raw.server ?? {});
     const api = apiSchema.parse(raw.api ?? {});
     const projects = projectsSchema.parse(raw.projects ?? {});
-    return { worker, context, architecture, server, api, projects };
+    const distillation = distillationSchema.parse(raw.distillation ?? {});
+    return { worker, context, architecture, server, api, projects, distillation };
 }
 
 export function loadConfig(path?: string): AppConfig {
