@@ -5,6 +5,7 @@ import {
     initDb, closeDb, getDb, getOrCreateProject, insertMemory,
     enqueueDistillation, dequeueDistillation, completeDistillationQueue,
     checkDistillationEligibility, softDeleteMemory, purgeDeletedMemories,
+    restoreMemory, listDeletedMemories,
     listMemories, searchMemories, searchMemoriesFuzzy,
     incrementDistillationMemoryCount, resetDistillationState,
 } from '../src/db.js';
@@ -174,6 +175,52 @@ describe('purge', () => {
         const db = getDb();
         const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
         expect(row).toBeDefined();
+    });
+});
+
+describe('restoreMemory', () => {
+    it('clears deleted_at and deleted_reason', () => {
+        const project = getOrCreateProject('/test/restore');
+        const id = insertMemory(project.id, 'was deleted', '', 'fact', 3, '', 'general');
+        softDeleteMemory(id, 'outdated');
+        restoreMemory(id);
+        const db = getDb();
+        const row = db.prepare('SELECT deleted_at, deleted_reason FROM memories WHERE id = ?').get(id) as any;
+        expect(row.deleted_at).toBe('');
+        expect(row.deleted_reason).toBe('');
+    });
+
+    it('restored memory appears in listMemories again', () => {
+        const project = getOrCreateProject('/test/restore');
+        const id = insertMemory(project.id, 'restored memory', '', 'fact', 3, '', 'general');
+        softDeleteMemory(id, 'outdated');
+        const before = listMemories('/test/restore');
+        expect(before.length).toBe(0);
+        restoreMemory(id);
+        const after = listMemories('/test/restore');
+        expect(after.length).toBe(1);
+        expect(after[0].content).toBe('restored memory');
+    });
+});
+
+describe('listDeletedMemories', () => {
+    it('returns only soft-deleted memories for a project', () => {
+        const project = getOrCreateProject('/test/deleted-list');
+        insertMemory(project.id, 'active memory', '', 'fact', 3, '', 'general');
+        const deletedId = insertMemory(project.id, 'deleted memory', '', 'fact', 3, '', 'general');
+        softDeleteMemory(deletedId, 'file removed');
+        const deleted = listDeletedMemories('/test/deleted-list');
+        expect(deleted.length).toBe(1);
+        expect(deleted[0].content).toBe('deleted memory');
+        expect(deleted[0].deleted_reason).toBe('file removed');
+        expect(deleted[0].deleted_at).not.toBe('');
+    });
+
+    it('returns empty array when no deleted memories', () => {
+        const project = getOrCreateProject('/test/no-deleted');
+        insertMemory(project.id, 'active memory', '', 'fact', 3, '', 'general');
+        const deleted = listDeletedMemories('/test/no-deleted');
+        expect(deleted.length).toBe(0);
     });
 });
 

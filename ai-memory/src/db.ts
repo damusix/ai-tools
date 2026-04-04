@@ -460,6 +460,7 @@ export function listProjects(): any[] {
         SELECT p.id, p.path, p.name, p.icon, p.description, p.created_at, p.summary,
             p.architecture_summary, p.architecture_facts, p.architecture_full, p.architecture_scanned_at,
             p.git_root, p.git_url, p.consolidate,
+            p.distillation_at, p.distillation_memories_since,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
             (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
         FROM projects p
@@ -1049,6 +1050,38 @@ export function softDeleteMemory(id: number, reason: string): void {
     const db = getDb();
     const now = new Date().toISOString();
     db.prepare('UPDATE memories SET deleted_at = ?, deleted_reason = ? WHERE id = ?').run(now, reason, id);
+}
+
+export function restoreMemory(id: number): void {
+    const db = getDb();
+    db.prepare("UPDATE memories SET deleted_at = '', deleted_reason = '' WHERE id = ?").run(id);
+}
+
+export function listDeletedMemories(projectPath?: string, limit = 50): any[] {
+    const db = getDb();
+    const conditions: string[] = ["m.deleted_at != ''"];
+    const params: any[] = [];
+
+    if (projectPath) {
+        conditions.push("(p.path = ? OR p.path = '_global')");
+        params.push(projectPath);
+    }
+
+    let sql = `
+        SELECT m.id, m.content, m.tags, m.category, m.importance, m.domain,
+               m.created_at, m.updated_at, m.reason, m.observation_ids,
+               m.deleted_at, m.deleted_reason, p.path as project_path
+        FROM memories m
+        JOIN projects p ON m.project_id = p.id
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY m.deleted_at DESC
+    `;
+    if (limit > 0) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+    }
+
+    return db.prepare(sql).all(...params);
 }
 
 export function purgeDeletedMemories(): number {
