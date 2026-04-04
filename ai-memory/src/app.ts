@@ -38,6 +38,8 @@ import {
     deleteEmptyProjects,
     batchDeleteProjects,
     setProjectConsolidate,
+    checkDistillationEligibility,
+    enqueueDistillation,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -94,6 +96,13 @@ export function createApp(): Hono {
         const id = enqueueObservation(project.id, JSON.stringify(body.payload || body));
         log('api', `Enqueued turn for ${projectPath}`);
         if (isNew) broadcast('counts:updated', {});
+
+        // Check if distillation should be triggered
+        if (checkDistillationEligibility(project.id)) {
+            enqueueDistillation(project.id);
+            log('api', `Enqueued distillation for ${projectPath}`);
+        }
+
         return c.json({ queued: true, id });
     });
 

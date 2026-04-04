@@ -20,6 +20,7 @@ import {
     listDomainsRaw,
     listCategoriesRaw,
     purgeStaleObservations,
+    purgeDeletedMemories,
     incrementSkippedCount,
     deleteOverSkippedObservations,
     getProjectsWithStaleObservations,
@@ -33,6 +34,7 @@ import { getConfig } from './config.js';
 import { checkProjectSummaries } from './summary.js';
 import { checkArchitectureScans } from './architecture/pipeline.js';
 import { checkGitConsolidation } from './consolidation.js';
+import { processDistillationQueue } from './distillation.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, 'prompts');
@@ -177,6 +179,11 @@ export function startWorker(): void {
                 log('worker', `Purged ${purged} stale processed observations`);
                 broadcast('counts:updated', {});
             }
+            const purgedMemories = purgeDeletedMemories();
+            if (purgedMemories > 0) {
+                log('worker', `Purged ${purgedMemories} soft-deleted memories past grace period`);
+                broadcast('counts:updated', {});
+            }
             const emptied = deleteEmptyProjects();
             if (emptied > 0) {
                 log('worker', `Cleaned up ${emptied} empty projects`);
@@ -197,6 +204,7 @@ export function startWorker(): void {
             if (pollCount <= 1 || pollCount % consolidateEvery === 0) {
                 await checkGitConsolidation();
             }
+            await processDistillationQueue();
         } catch (err) {
             logError('worker', `Error: ${err}`);
         } finally {
