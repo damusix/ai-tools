@@ -40,6 +40,8 @@ import {
     setProjectConsolidate,
     checkDistillationEligibility,
     enqueueDistillation,
+    restoreMemory,
+    listDeletedMemories,
 } from './db.js';
 import { homedir } from 'node:os';
 import { buildStartupContext } from './context.js';
@@ -341,6 +343,29 @@ export function createApp(): Hono {
             params.push(limit);
         }
         return c.json(db.prepare(sql).all(...params));
+    });
+
+    // ── Deleted memories ─────────────────────────────────────────────
+    app.get('/api/memories/deleted', (c) => {
+        const project = c.req.query('project');
+        const limit = parseInt(c.req.query('limit') || '50', 10);
+        return c.json(listDeletedMemories(project, limit));
+    });
+
+    app.post('/api/memories/:id/restore', (c) => {
+        const id = parseInt(c.req.param('id'), 10);
+        restoreMemory(id);
+        broadcast('memory:created', {});
+        broadcast('counts:updated', {});
+        return c.json({ restored: true });
+    });
+
+    // ── Distillation trigger ─────────────────────────────────────────
+    app.post('/api/projects/:id/distillation', (c) => {
+        const projectId = parseInt(c.req.param('id'), 10);
+        enqueueDistillation(projectId);
+        log('api', `Manual distillation triggered for project ${projectId}`);
+        return c.json({ queued: true });
     });
 
     app.delete('/api/observations/:id', (c) => {

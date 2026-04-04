@@ -151,6 +151,7 @@ export async function processDistillationQueue(): Promise<void> {
         resetDistillationState(item.project_id);
         completeDistillationQueue(item.id, 'done');
 
+        broadcast('distillation:updated', {});
         if (totalDeleted > 0) {
             broadcast('counts:updated', {});
         }
