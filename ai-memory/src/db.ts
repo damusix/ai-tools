@@ -166,6 +166,13 @@ function initSchema(db: Database.Database): void {
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
 
+        CREATE TABLE IF NOT EXISTS distillation_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL REFERENCES projects(id),
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        );
+
         CREATE TABLE IF NOT EXISTS domains (
             name TEXT PRIMARY KEY,
             description TEXT NOT NULL DEFAULT '',
@@ -185,6 +192,7 @@ function initSchema(db: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_memories_domain ON memories(domain);
         CREATE INDEX IF NOT EXISTS idx_obs_queue_status ON observation_queue(status);
         CREATE INDEX IF NOT EXISTS idx_mem_queue_status ON memory_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_distillation_queue_status ON distillation_queue(status);
     `);
 
     // Backfill trigram index from existing memories
@@ -239,6 +247,26 @@ function initSchema(db: Database.Database): void {
     }
     if (!projectColNames['consolidate']) {
         db.exec("ALTER TABLE projects ADD COLUMN consolidate TEXT NOT NULL DEFAULT ''");
+    }
+
+    // Migration: distillation columns on projects
+    if (!projectColNames['distillation_at']) {
+        db.exec("ALTER TABLE projects ADD COLUMN distillation_at TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['distillation_memories_since']) {
+        db.exec("ALTER TABLE projects ADD COLUMN distillation_memories_since INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Migration: soft-delete columns on memories
+    const memoryCols = db.prepare("PRAGMA table_info('memories')").all() as { name: string }[];
+    const memoryColNames: Record<string, true> = {};
+    for (const c of memoryCols) memoryColNames[c.name] = true;
+
+    if (!memoryColNames['deleted_at']) {
+        db.exec("ALTER TABLE memories ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''");
+    }
+    if (!memoryColNames['deleted_reason']) {
+        db.exec("ALTER TABLE memories ADD COLUMN deleted_reason TEXT NOT NULL DEFAULT ''");
     }
 
     // Seed default domains
