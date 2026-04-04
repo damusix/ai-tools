@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0
+
+### Features
+
+- **wire into worker loop and enqueue handler** [#ac62c97](https://github.com/damusix/ai-tools/commit/ac62c976d987fd577427892acfd8fc0ff748767a)
+- **add orchestrator with signal gathering and LLM batching** [#61500e3](https://github.com/damusix/ai-tools/commit/61500e39d14c1cec3e6b21810a8c87f8b0694f4e)
+- **add LLM prompt template** [#21f0881](https://github.com/damusix/ai-tools/commit/21f08818344a8a733f970dbeee62e1eede57ab98)
+- **add queue helpers, soft-delete, and eligibility checks** [#e2e0b61](https://github.com/damusix/ai-tools/commit/e2e0b61693583cc79e65f28210b3763e1f6ec993)
+  Add distillation queue (enqueue/dequeue/complete), soft-delete functions
+  (softDeleteMemory, purgeDeletedMemories), distillation state management
+  (increment/reset counter, eligibility check), and listActiveMemoriesByDomain.
+  Filter soft-deleted memories from listMemories, searchMemories, and
+  searchMemoriesFuzzy. Wire incrementDistillationMemoryCount into insertMemory.
+- **add db migrations for soft-delete and queue** [#5dc58b9](https://github.com/damusix/ai-tools/commit/5dc58b94adca18e84e0c19e5d42fe45613d30560)
+- **add config schema with defaults** [#7c02cab](https://github.com/damusix/ai-tools/commit/7c02cabbe70e24de99892244831b4074331da532)
 ## 1.3.1
 
 ### Features
