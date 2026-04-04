@@ -551,6 +551,8 @@ export function insertMemory(
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(projectId, content, tags, category, importance, observationIds, domain ?? null, reason ?? '', now, now);
+    // Bump distillation counter
+    incrementDistillationMemoryCount(projectId);
     return Number(result.lastInsertRowid);
 }
 
@@ -599,6 +601,8 @@ export function searchMemories(
         WHERE memories_fts MATCH ?
     `;
     const params: any[] = [query];
+
+    sql += " AND m.deleted_at = ''";
 
     if (projectPath) {
         sql += " AND (p.path = ? OR p.path = '_global')";
@@ -660,6 +664,8 @@ export function searchMemoriesFuzzy(
     `;
     const params: any[] = [query];
 
+    sql += " AND m.deleted_at = ''";
+
     if (projectPath) {
         sql += " AND (p.path = ? OR p.path = '_global')";
         params.push(projectPath);
@@ -703,7 +709,7 @@ export function searchMemoriesFuzzy(
 
 export function listMemories(projectPath?: string, tag?: string | string[], category?: string | string[], limit = 50, domain?: string | string[]): any[] {
     const db = getDb();
-    const conditions: string[] = [];
+    const conditions: string[] = ["m.deleted_at = ''"];
     const params: any[] = [];
 
     if (projectPath) {
@@ -1006,6 +1012,116 @@ export function dequeueMemorySynthesis(): any | null {
 export function completeMemoryQueue(id: number, status: 'done' | 'failed'): void {
     const db = getDb();
     db.prepare('UPDATE memory_queue SET status = ? WHERE id = ?').run(status, id);
+}
+
+// ── Distillation queue ─────────────────────────────────────────
+
+export function enqueueDistillation(projectId: number): number {
+    const db = getDb();
+    // Skip if already pending
+    const existing = db.prepare(
+        "SELECT id FROM distillation_queue WHERE project_id = ? AND status = 'pending'"
+    ).get(projectId) as any;
+    if (existing) return existing.id;
+
+    const result = db.prepare('INSERT INTO distillation_queue (project_id) VALUES (?)').run(projectId);
+    return Number(result.lastInsertRowid);
+}
+
+export function dequeueDistillation(): { id: number; project_id: number } | null {
+    const db = getDb();
+    const row = db.prepare(
+        "SELECT id, project_id FROM distillation_queue WHERE status = 'pending' ORDER BY id LIMIT 1"
+    ).get() as any;
+    if (!row) return null;
+    db.prepare("UPDATE distillation_queue SET status = 'processing' WHERE id = ?").run(row.id);
+    return row;
+}
+
+export function completeDistillationQueue(id: number, status: 'done' | 'failed'): void {
+    const db = getDb();
+    db.prepare('UPDATE distillation_queue SET status = ? WHERE id = ?').run(status, id);
+}
+
+// ── Soft-delete ────────────────────────────────────────────────
+
+export function softDeleteMemory(id: number, reason: string): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.prepare('UPDATE memories SET deleted_at = ?, deleted_reason = ? WHERE id = ?').run(now, reason, id);
+}
+
+export function purgeDeletedMemories(): number {
+    const db = getDb();
+    const hours = getConfig().distillation.purgeAfterHours;
+    const result = db.prepare(
+        `DELETE FROM memories WHERE deleted_at != '' AND deleted_at < datetime('now', '-${hours} hours')`
+    ).run();
+    return result.changes;
+}
+
+// ── Distillation state ─────────────────────────────────────────
+
+export function incrementDistillationMemoryCount(projectId: number): void {
+    const db = getDb();
+    db.prepare('UPDATE projects SET distillation_memories_since = distillation_memories_since + 1 WHERE id = ?')
+        .run(projectId);
+}
+
+export function resetDistillationState(projectId: number): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.prepare('UPDATE projects SET distillation_at = ?, distillation_memories_since = 0 WHERE id = ?')
+        .run(now, projectId);
+}
+
+export function checkDistillationEligibility(projectId: number): boolean {
+    const db = getDb();
+    const row = db.prepare(
+        'SELECT distillation_at, distillation_memories_since FROM projects WHERE id = ?'
+    ).get(projectId) as { distillation_at: string; distillation_memories_since: number } | undefined;
+    if (!row) return false;
+
+    const cfg = getConfig().distillation;
+
+    // Check memory count threshold
+    if (row.distillation_memories_since < cfg.minMemoriesSince) return false;
+
+    // Check time threshold
+    if (row.distillation_at) {
+        const lastRun = Date.parse(row.distillation_at);
+        if (!Number.isNaN(lastRun)) {
+            const hoursSince = (Date.now() - lastRun) / 3600000;
+            if (hoursSince < cfg.minAgeHours) return false;
+        }
+    }
+
+    return true;
+}
+
+export function getDistillationState(projectId: number): { distillation_at: string; git_root: string } {
+    const db = getDb();
+    const row = db.prepare(
+        'SELECT distillation_at, git_root FROM projects WHERE id = ?'
+    ).get(projectId) as any;
+    return { distillation_at: row?.distillation_at ?? '', git_root: row?.git_root ?? '' };
+}
+
+export function listActiveMemoriesByDomain(projectId: number): Record<string, { id: number; content: string; category: string; created_at: string }[]> {
+    const db = getDb();
+    const rows = db.prepare(
+        `SELECT id, content, category, domain, created_at FROM memories
+         WHERE project_id = ? AND deleted_at = ''
+         ORDER BY domain, importance DESC`
+    ).all(projectId) as { id: number; content: string; category: string; domain: string; created_at: string }[];
+
+    const grouped: Record<string, { id: number; content: string; category: string; created_at: string }[]> = {};
+    for (const row of rows) {
+        const domain = row.domain || 'general';
+        if (!grouped[domain]) grouped[domain] = [];
+        grouped[domain].push({ id: row.id, content: row.content, category: row.category, created_at: row.created_at });
+    }
+    return grouped;
 }
 
 export function purgeStaleObservations(): number {

@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { initDb, closeDb, getDb, getOrCreateProject, insertMemory } from '../src/db.js';
+import {
+    initDb, closeDb, getDb, getOrCreateProject, insertMemory,
+    enqueueDistillation, dequeueDistillation, completeDistillationQueue,
+    checkDistillationEligibility, softDeleteMemory, purgeDeletedMemories,
+    listMemories, searchMemories, searchMemoriesFuzzy,
+    incrementDistillationMemoryCount, resetDistillationState,
+} from '../src/db.js';
 
 const TMP_DIR = join(import.meta.dirname, '.');
 let dbPath: string;
@@ -65,5 +71,155 @@ describe('distillation migrations', () => {
         const row = db.prepare('SELECT distillation_at, distillation_memories_since FROM projects WHERE id = ?').get(project.id) as any;
         expect(row.distillation_at).toBe('');
         expect(row.distillation_memories_since).toBe(0);
+    });
+});
+
+describe('distillation queue', () => {
+    it('enqueue, dequeue, complete lifecycle', () => {
+        const project = getOrCreateProject('/test/distill');
+        const id = enqueueDistillation(project.id);
+        expect(id).toBeGreaterThan(0);
+
+        const item = dequeueDistillation();
+        expect(item).not.toBeNull();
+        expect(item!.project_id).toBe(project.id);
+
+        completeDistillationQueue(item!.id, 'done');
+        const next = dequeueDistillation();
+        expect(next).toBeNull();
+    });
+
+    it('does not enqueue duplicate pending entries for same project', () => {
+        const project = getOrCreateProject('/test/distill');
+        enqueueDistillation(project.id);
+        enqueueDistillation(project.id);
+        const db = getDb();
+        const count = (db.prepare(
+            "SELECT COUNT(*) as c FROM distillation_queue WHERE project_id = ? AND status = 'pending'"
+        ).get(project.id) as any).c;
+        expect(count).toBe(1);
+    });
+});
+
+describe('soft-delete', () => {
+    it('softDeleteMemory sets deleted_at and deleted_reason', () => {
+        const project = getOrCreateProject('/test/distill');
+        const id = insertMemory(project.id, 'stale memory', '', 'fact', 3, '', 'general');
+        softDeleteMemory(id, 'file no longer exists');
+        const db = getDb();
+        const row = db.prepare('SELECT deleted_at, deleted_reason FROM memories WHERE id = ?').get(id) as any;
+        expect(row.deleted_at).not.toBe('');
+        expect(row.deleted_reason).toBe('file no longer exists');
+    });
+
+    it('listMemories excludes soft-deleted memories', () => {
+        const project = getOrCreateProject('/test/distill');
+        insertMemory(project.id, 'active memory', '', 'fact', 3, '', 'general');
+        const deletedId = insertMemory(project.id, 'stale memory', '', 'fact', 3, '', 'general');
+        softDeleteMemory(deletedId, 'outdated');
+
+        const memories = listMemories('/test/distill');
+        expect(memories.length).toBe(1);
+        expect(memories[0].content).toBe('active memory');
+    });
+
+    it('searchMemories excludes soft-deleted memories', () => {
+        const project = getOrCreateProject('/test/distill');
+        insertMemory(project.id, 'findable memory about react', 'react', 'fact', 3, '', 'frontend');
+        const deletedId = insertMemory(project.id, 'deleted memory about react', 'react', 'fact', 3, '', 'frontend');
+        softDeleteMemory(deletedId, 'outdated');
+
+        const results = searchMemories('react', '/test/distill');
+        expect(results.length).toBe(1);
+        expect(results[0].content).toBe('findable memory about react');
+    });
+
+    it('searchMemoriesFuzzy excludes soft-deleted memories', () => {
+        const project = getOrCreateProject('/test/distill');
+        insertMemory(project.id, 'findable memory about zustand', 'zustand', 'fact', 3, '', 'frontend');
+        const deletedId = insertMemory(project.id, 'deleted memory about zustand', 'zustand', 'fact', 3, '', 'frontend');
+        softDeleteMemory(deletedId, 'outdated');
+
+        const results = searchMemoriesFuzzy('zustand', '/test/distill');
+        expect(results.length).toBe(1);
+        expect(results[0].content).toBe('findable memory about zustand');
+    });
+});
+
+describe('purge', () => {
+    it('purgeDeletedMemories removes memories past grace period', () => {
+        const project = getOrCreateProject('/test/distill');
+        const id = insertMemory(project.id, 'old deleted memory', '', 'fact', 3, '', 'general');
+
+        const db = getDb();
+        const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+        db.prepare('UPDATE memories SET deleted_at = ?, deleted_reason = ? WHERE id = ?')
+            .run(eightDaysAgo, 'test reason', id);
+
+        const purged = purgeDeletedMemories();
+        expect(purged).toBe(1);
+
+        const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
+        expect(row).toBeUndefined();
+    });
+
+    it('purgeDeletedMemories does not remove memories within grace period', () => {
+        const project = getOrCreateProject('/test/distill');
+        const id = insertMemory(project.id, 'recently deleted memory', '', 'fact', 3, '', 'general');
+        softDeleteMemory(id, 'maybe stale');
+
+        const purged = purgeDeletedMemories();
+        expect(purged).toBe(0);
+
+        const db = getDb();
+        const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
+        expect(row).toBeDefined();
+    });
+});
+
+describe('distillation counter', () => {
+    it('incrementDistillationMemoryCount bumps the counter', () => {
+        const project = getOrCreateProject('/test/distill');
+        incrementDistillationMemoryCount(project.id);
+        incrementDistillationMemoryCount(project.id);
+
+        const db = getDb();
+        const row = db.prepare('SELECT distillation_memories_since FROM projects WHERE id = ?').get(project.id) as any;
+        expect(row.distillation_memories_since).toBe(2);
+    });
+
+    it('resetDistillationState resets counter and sets timestamp', () => {
+        const project = getOrCreateProject('/test/distill');
+        incrementDistillationMemoryCount(project.id);
+        incrementDistillationMemoryCount(project.id);
+
+        resetDistillationState(project.id);
+
+        const db = getDb();
+        const row = db.prepare('SELECT distillation_at, distillation_memories_since FROM projects WHERE id = ?').get(project.id) as any;
+        expect(row.distillation_memories_since).toBe(0);
+        expect(row.distillation_at).not.toBe('');
+    });
+});
+
+describe('checkDistillationEligibility', () => {
+    it('returns false when counter is below threshold', () => {
+        const project = getOrCreateProject('/test/distill');
+        expect(checkDistillationEligibility(project.id)).toBe(false);
+    });
+
+    it('returns true when counter meets threshold and enough time has passed', () => {
+        const project = getOrCreateProject('/test/distill');
+        const db = getDb();
+        db.prepare('UPDATE projects SET distillation_memories_since = 10 WHERE id = ?').run(project.id);
+        expect(checkDistillationEligibility(project.id)).toBe(true);
+    });
+
+    it('returns false when distillation ran recently', () => {
+        const project = getOrCreateProject('/test/distill');
+        const db = getDb();
+        db.prepare('UPDATE projects SET distillation_memories_since = 10, distillation_at = ? WHERE id = ?')
+            .run(new Date().toISOString(), project.id);
+        expect(checkDistillationEligibility(project.id)).toBe(false);
     });
 });
