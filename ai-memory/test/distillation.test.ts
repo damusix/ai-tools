@@ -223,3 +223,45 @@ describe('checkDistillationEligibility', () => {
         expect(checkDistillationEligibility(project.id)).toBe(false);
     });
 });
+
+describe('distillation integration', () => {
+    it('insertMemory increments distillation counter', () => {
+        const project = getOrCreateProject('/test/distill-int');
+        insertMemory(project.id, 'memory 1', '', 'fact', 3, '', 'general');
+        insertMemory(project.id, 'memory 2', '', 'fact', 3, '', 'general');
+
+        const db = getDb();
+        const row = db.prepare('SELECT distillation_memories_since FROM projects WHERE id = ?').get(project.id) as any;
+        expect(row.distillation_memories_since).toBe(2);
+    });
+
+    it('full queue lifecycle: enqueue → dequeue → complete → reset', () => {
+        const project = getOrCreateProject('/test/distill-lifecycle');
+        // Add enough memories to cross the threshold
+        for (let i = 0; i < 6; i++) {
+            insertMemory(project.id, `memory ${i}`, '', 'fact', 3, '', 'general');
+        }
+
+        // Should be eligible now (6 >= 5 memories, never distilled)
+        expect(checkDistillationEligibility(project.id)).toBe(true);
+
+        // Enqueue
+        const queueId = enqueueDistillation(project.id);
+        expect(queueId).toBeGreaterThan(0);
+
+        // Dequeue
+        const item = dequeueDistillation();
+        expect(item).not.toBeNull();
+        expect(item!.project_id).toBe(project.id);
+
+        // Complete
+        completeDistillationQueue(item!.id, 'done');
+
+        // Reset state
+        resetDistillationState(project.id);
+        const db = getDb();
+        const row = db.prepare('SELECT distillation_at, distillation_memories_since FROM projects WHERE id = ?').get(project.id) as any;
+        expect(row.distillation_memories_since).toBe(0);
+        expect(row.distillation_at).not.toBe('');
+    });
+});
