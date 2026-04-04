@@ -84,7 +84,7 @@ const DirtyDot: Component<{ dirty: boolean }> = (props) => (
 
 // ── Main component ──────────────────────────────────────────────
 const MemoryDetailModal: Component<{
-    memory: Memory | null;
+    memory: (Memory & { deleted_at?: string; deleted_reason?: string }) | null;
     domains: TaxonomyItem[];
     categories: TaxonomyItem[];
     open: boolean;
@@ -92,7 +92,10 @@ const MemoryDetailModal: Component<{
     onUpdate: (id: number, fields: {
         content: string; tags: string; category: string; importance: number; domain: string | null;
     }) => Promise<void>;
+    onRestore?: (id: number) => Promise<void>;
+    onPermanentDelete?: (id: number) => Promise<void>;
     showToast: (msg: string) => void;
+    mode?: 'edit' | 'deleted';
 }> = (props) => {
     const [content, setContent] = createSignal('');
     const [tags, setTags] = createSignal('');
@@ -101,6 +104,8 @@ const MemoryDetailModal: Component<{
     const [importance, setImportance] = createSignal(3);
     const [tagsFocused, setTagsFocused] = createSignal(false);
     const [saving, setSaving] = createSignal(false);
+    const [restoring, setRestoring] = createSignal(false);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = createSignal(false);
 
     // Original values for dirty tracking
     const [origContent, setOrigContent] = createSignal('');
@@ -160,6 +165,32 @@ const MemoryDetailModal: Component<{
         }
     };
 
+    const handleRestore = async () => {
+        if (!props.memory || !props.onRestore) return;
+        setRestoring(true);
+        try {
+            await props.onRestore(props.memory.id);
+            props.onClose();
+        } catch (e: any) {
+            props.showToast(e.message || 'Restore failed');
+        } finally {
+            setRestoring(false);
+        }
+    };
+
+    const handlePermanentDelete = async () => {
+        if (!props.memory || !props.onPermanentDelete) return;
+        try {
+            await props.onPermanentDelete(props.memory.id);
+            props.onClose();
+        } catch (e: any) {
+            props.showToast(e.message || 'Delete failed');
+        }
+        setConfirmPermanentDelete(false);
+    };
+
+    const isDeleted = () => props.mode === 'deleted';
+
     let contentRef!: HTMLDivElement;
     let tagsRef!: HTMLDivElement;
 
@@ -178,16 +209,19 @@ const MemoryDetailModal: Component<{
                                 {/* Content */}
                                 <div class="relative">
                                     <DirtyDot dirty={contentDirty()} />
-                                    <div
-                                        ref={(el) => {
-                                            contentRef = el;
-                                            el.textContent = content();
-                                        }}
-                                        contentEditable
-                                        class="text-sm text-neutral-200 leading-relaxed whitespace-pre-wrap border border-dashed border-transparent hover:border-neutral-600 focus:border-[#d77757]/40 rounded p-2 outline-none min-h-[80px] max-h-[300px] overflow-y-auto"
-                                        onInput={() => setContent(contentRef.textContent || '')}
-                                    />
-
+                                    <Show when={!isDeleted()} fallback={
+                                        <p class="text-sm text-neutral-200 leading-relaxed whitespace-pre-wrap p-2">{content()}</p>
+                                    }>
+                                        <div
+                                            ref={(el) => {
+                                                contentRef = el;
+                                                el.textContent = content();
+                                            }}
+                                            contentEditable
+                                            class="text-sm text-neutral-200 leading-relaxed whitespace-pre-wrap border border-dashed border-transparent hover:border-neutral-600 focus:border-[#d77757]/40 rounded p-2 outline-none min-h-[80px] max-h-[300px] overflow-y-auto"
+                                            onInput={() => setContent(contentRef.textContent || '')}
+                                        />
+                                    </Show>
                                 </div>
 
                                 {/* Tags */}
@@ -197,15 +231,9 @@ const MemoryDetailModal: Component<{
                                         <Icon name="tag" size={10} />
                                         Tags
                                     </div>
-                                    <Show when={!tagsFocused()}>
-                                        <div
-                                            class="flex flex-wrap gap-1.5 border border-dashed border-transparent hover:border-neutral-600 rounded p-1.5 cursor-text min-h-[28px]"
-                                            onClick={() => {
-                                                setTagsFocused(true);
-                                                requestAnimationFrame(() => tagsRef?.focus());
-                                            }}
-                                        >
-                                            <Show when={tags()} fallback={<span class="text-neutral-600 text-xs">click to add tags</span>}>
+                                    <Show when={!isDeleted()} fallback={
+                                        <div class="flex flex-wrap gap-1.5 p-1.5 min-h-[28px]">
+                                            <Show when={tags()} fallback={<span class="text-neutral-600 text-xs">no tags</span>}>
                                                 <For each={tags().split(',').filter(Boolean)}>
                                                     {(tag) => (
                                                         <span class="px-1.5 py-0.5 rounded text-[10px] bg-[#d77757]/10 text-[#d77757]/70 flex items-center gap-0.5">
@@ -216,18 +244,39 @@ const MemoryDetailModal: Component<{
                                                 </For>
                                             </Show>
                                         </div>
-                                    </Show>
-                                    <Show when={tagsFocused()}>
-                                        <div
-                                            ref={(el) => {
-                                                tagsRef = el;
-                                                el.textContent = tags();
-                                            }}
-                                            contentEditable
-                                            class="text-xs text-neutral-300 border border-dashed border-[#d77757]/40 rounded p-1.5 outline-none min-h-[28px]"
-                                            onInput={() => setTags(tagsRef.textContent || '')}
-                                            onBlur={() => setTagsFocused(false)}
-                                        />
+                                    }>
+                                        <Show when={!tagsFocused()}>
+                                            <div
+                                                class="flex flex-wrap gap-1.5 border border-dashed border-transparent hover:border-neutral-600 rounded p-1.5 cursor-text min-h-[28px]"
+                                                onClick={() => {
+                                                    setTagsFocused(true);
+                                                    requestAnimationFrame(() => tagsRef?.focus());
+                                                }}
+                                            >
+                                                <Show when={tags()} fallback={<span class="text-neutral-600 text-xs">click to add tags</span>}>
+                                                    <For each={tags().split(',').filter(Boolean)}>
+                                                        {(tag) => (
+                                                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-[#d77757]/10 text-[#d77757]/70 flex items-center gap-0.5">
+                                                                <Icon name="tag" size={9} />
+                                                                {tag.trim()}
+                                                            </span>
+                                                        )}
+                                                    </For>
+                                                </Show>
+                                            </div>
+                                        </Show>
+                                        <Show when={tagsFocused()}>
+                                            <div
+                                                ref={(el) => {
+                                                    tagsRef = el;
+                                                    el.textContent = tags();
+                                                }}
+                                                contentEditable
+                                                class="text-xs text-neutral-300 border border-dashed border-[#d77757]/40 rounded p-1.5 outline-none min-h-[28px]"
+                                                onInput={() => setTags(tagsRef.textContent || '')}
+                                                onBlur={() => setTagsFocused(false)}
+                                            />
+                                        </Show>
                                     </Show>
                                 </div>
                             </div>
@@ -235,51 +284,78 @@ const MemoryDetailModal: Component<{
                             {/* Right sidebar */}
                             <div class="w-[185px] border-l border-neutral-700 p-4 flex flex-col gap-4 overflow-y-auto">
                                 {/* Category */}
-                                <div class="relative">
-                                    <DirtyDot dirty={categoryDirty()} />
-                                    <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Category</div>
-                                    <Dropdown
-                                        label="Category"
-                                        value={category()}
-                                        items={props.categories}
-                                        onChange={(v) => { if (v) setCategory(v); }}
-                                    />
-                                </div>
+                                <Show when={!isDeleted()} fallback={
+                                    <>
+                                        <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Category</div>
+                                        <span class="text-xs text-neutral-300">{category()}</span>
+                                    </>
+                                }>
+                                    <div class="relative">
+                                        <DirtyDot dirty={categoryDirty()} />
+                                        <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Category</div>
+                                        <Dropdown
+                                            label="Category"
+                                            value={category()}
+                                            items={props.categories}
+                                            onChange={(v) => { if (v) setCategory(v); }}
+                                        />
+                                    </div>
+                                </Show>
 
                                 {/* Domain */}
-                                <div class="relative">
-                                    <DirtyDot dirty={domainDirty()} />
-                                    <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Domain</div>
-                                    <Dropdown
-                                        label="Domain"
-                                        value={domain()}
-                                        items={props.domains}
-                                        onChange={(v) => setDomain(v)}
-                                    />
-                                </div>
+                                <Show when={!isDeleted()} fallback={
+                                    <>
+                                        <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Domain</div>
+                                        <span class="text-xs text-neutral-300">{domain() || 'None'}</span>
+                                    </>
+                                }>
+                                    <div class="relative">
+                                        <DirtyDot dirty={domainDirty()} />
+                                        <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Domain</div>
+                                        <Dropdown
+                                            label="Domain"
+                                            value={domain()}
+                                            items={props.domains}
+                                            onChange={(v) => setDomain(v)}
+                                        />
+                                    </div>
+                                </Show>
 
                                 {/* Importance stars */}
-                                <div class="relative">
-                                    <DirtyDot dirty={importanceDirty()} />
-                                    <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Importance</div>
-                                    <div class="flex items-center gap-0.5">
-                                        <For each={[1, 2, 3, 4, 5]}>
-                                            {(n) => (
-                                                <button
-                                                    onClick={() => setImportance(n)}
-                                                    class="p-0.5 hover:scale-125 transition-transform"
-                                                    title={`Set importance to ${n}`}
-                                                >
-                                                    <Icon
-                                                        name="star"
-                                                        size={14}
-                                                        class={n <= importance() ? 'text-amber-400' : 'text-neutral-700'}
-                                                    />
-                                                </button>
-                                            )}
-                                        </For>
+                                <Show when={!isDeleted()} fallback={
+                                    <>
+                                        <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Importance</div>
+                                        <div class="flex items-center gap-0.5">
+                                            <For each={[1, 2, 3, 4, 5]}>
+                                                {(n) => (
+                                                    <Icon name="star" size={14} class={n <= importance() ? 'text-amber-400' : 'text-neutral-700'} />
+                                                )}
+                                            </For>
+                                        </div>
+                                    </>
+                                }>
+                                    <div class="relative">
+                                        <DirtyDot dirty={importanceDirty()} />
+                                        <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Importance</div>
+                                        <div class="flex items-center gap-0.5">
+                                            <For each={[1, 2, 3, 4, 5]}>
+                                                {(n) => (
+                                                    <button
+                                                        onClick={() => setImportance(n)}
+                                                        class="p-0.5 hover:scale-125 transition-transform"
+                                                        title={`Set importance to ${n}`}
+                                                    >
+                                                        <Icon
+                                                            name="star"
+                                                            size={14}
+                                                            class={n <= importance() ? 'text-amber-400' : 'text-neutral-700'}
+                                                        />
+                                                    </button>
+                                                )}
+                                            </For>
+                                        </div>
                                     </div>
-                                </div>
+                                </Show>
 
                                 {/* Reason (read-only) */}
                                 <Show when={mem().reason}>
@@ -289,10 +365,20 @@ const MemoryDetailModal: Component<{
                                     </div>
                                 </Show>
 
+                                <Show when={isDeleted() && props.memory?.deleted_reason}>
+                                    <div>
+                                        <div class="text-[10px] text-red-400/70 uppercase tracking-wider mb-1">Delete Reason</div>
+                                        <p class="text-[11px] text-red-300/70 italic leading-relaxed">{props.memory?.deleted_reason}</p>
+                                    </div>
+                                </Show>
+
                                 {/* Timestamps (read-only) */}
                                 <div class="mt-auto text-[10px] text-neutral-600 space-y-1">
                                     <div>Created: {fmtDate(mem().created_at)}</div>
                                     <div>Updated: {fmtDate(mem().updated_at)}</div>
+                                    <Show when={isDeleted() && props.memory?.deleted_at}>
+                                        <div class="text-red-400/50">Deleted: {fmtDate(props.memory!.deleted_at!)}</div>
+                                    </Show>
                                 </div>
                             </div>
                         </div>
@@ -305,28 +391,73 @@ const MemoryDetailModal: Component<{
                                     <span>obs: {mem().observation_ids}</span>
                                 </Show>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button
-                                    onClick={handleCancel}
-                                    class="text-xs px-3 py-1.5 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleUpdate}
-                                    disabled={!isDirty() || saving()}
-                                    class={`text-xs px-3 py-1.5 rounded transition-colors ${
-                                        isDirty() && !saving()
-                                            ? 'bg-[#d77757]/20 text-[#d77757] hover:bg-[#d77757]/30'
-                                            : 'bg-neutral-800 text-neutral-600 cursor-not-allowed'
-                                    }`}
-                                >
-                                    {saving() ? 'Saving...' : 'Update'}
-                                </button>
-                            </div>
+                            <Show when={!isDeleted()} fallback={
+                                <div class="flex items-center gap-2">
+                                    <button
+                                        onClick={() => props.onClose()}
+                                        class="text-xs px-3 py-1.5 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleRestore}
+                                        disabled={restoring()}
+                                        class="text-xs px-3 py-1.5 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-40"
+                                    >
+                                        {restoring() ? 'Restoring...' : 'Restore'}
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmPermanentDelete(true)}
+                                        class="text-xs px-3 py-1.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                                    >
+                                        Permanently Delete
+                                    </button>
+                                </div>
+                            }>
+                                <div class="flex items-center gap-2">
+                                    <button
+                                        onClick={handleCancel}
+                                        class="text-xs px-3 py-1.5 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleUpdate}
+                                        disabled={!isDirty() || saving()}
+                                        class={`text-xs px-3 py-1.5 rounded transition-colors ${
+                                            isDirty() && !saving()
+                                                ? 'bg-[#d77757]/20 text-[#d77757] hover:bg-[#d77757]/30'
+                                                : 'bg-neutral-800 text-neutral-600 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {saving() ? 'Saving...' : 'Update'}
+                                    </button>
+                                </div>
+                            </Show>
                         </div>
                     </div>
                 )}
+            </Show>
+            <Show when={confirmPermanentDelete()}>
+                <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setConfirmPermanentDelete(false)}>
+                    <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-5 max-w-sm" onClick={(e) => e.stopPropagation()}>
+                        <p class="text-sm text-neutral-200 mb-4">Permanently delete this memory? This cannot be undone.</p>
+                        <div class="flex justify-end gap-2">
+                            <button
+                                onClick={() => setConfirmPermanentDelete(false)}
+                                class="text-xs px-3 py-1.5 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handlePermanentDelete}
+                                class="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                            >
+                                Delete Forever
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </Show>
         </Overlay>
     );
