@@ -236,13 +236,11 @@ func (h *Handler) executeHooks(ctx context.Context, eventName string, hooks []co
 	return results
 }
 
-// handleSessionEnd signals shutdown if the event is SessionEnd.
+// handleSessionEnd flushes the response if the event is SessionEnd.
 func (h *Handler) handleSessionEnd(event string, w http.ResponseWriter) {
 	if event == "SessionEnd" {
-		// Flush response before signaling shutdown
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		close(h.shutdownCh)
 	}
 }

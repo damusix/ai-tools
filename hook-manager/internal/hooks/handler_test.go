@@ -260,7 +260,7 @@ echo '{"extraField":"from hook2"}'
 	}
 }
 
-func TestHandler_SessionEndTriggersShutdown(t *testing.T) {
+func TestHandler_SessionEndDoesNotShutdown(t *testing.T) {
 	cfg := config.DefaultConfig()
 	store := tempStore(t, cfg)
 	log := tempLogger(t)
@@ -282,9 +282,9 @@ func TestHandler_SessionEndTriggersShutdown(t *testing.T) {
 
 	select {
 	case <-shutdownCh:
-		// expected
-	case <-time.After(2 * time.Second):
-		t.Error("shutdown channel was not closed after SessionEnd")
+		t.Error("shutdown channel should not be closed on SessionEnd")
+	case <-time.After(100 * time.Millisecond):
+		// expected — server stays alive
 	}
 }
 

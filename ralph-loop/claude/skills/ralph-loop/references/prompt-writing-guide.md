@@ -274,6 +274,98 @@ All tasks above are checked and every quality check passes.
 ```
 
 
+## Interactive Prompt-Writing Guide
+
+When helping a user write a ralph prompt, follow these four steps in order. Stop after
+each step and wait for the user's input before continuing.
+
+
+### Step 1: Clarify the Goal
+
+The goal must be crystal clear — one paragraph that tells an agent with zero context
+exactly what needs to be accomplished and why.
+
+**Evaluate:**
+
+- Is the goal specific? Does it name files, features, or behaviors?
+- Is the "why" included? Without motivation the agent makes poor judgment calls.
+- Could a developer who has never seen the codebase understand what to do?
+
+**Actions:**
+
+- Vague descriptions (e.g., "fix the auth system") → ask which part, what's broken, what "better" means.
+- Clear goal but missing "why" → ask what problem it solves.
+- Multiple plausible interpretations → use `AskUserQuestion` to present options.
+- Confirm the sharpened goal before moving on.
+
+**Example clarifying questions:**
+
+- "You mentioned fixing authentication — do you mean the login flow, session management, token refresh, or something else?"
+- "What problem does this solve? Is it a bug users are hitting, a security concern, or a new requirement?"
+- "When you say 'improve performance', which part is slow? Do you have metrics or specific endpoints?"
+
+
+### Step 2: Scope and Structure the Tasks
+
+Each task should represent roughly one iteration's worth of work (a commit-sized chunk).
+
+**Evaluate:**
+
+- **Too large:** A task that is really multiple days of work → propose a split.
+  (e.g., "Implement entire auth system" → install deps, write middleware, update routes, add tests)
+- **Too small:** Trivial, tightly coupled tasks → propose condensing.
+  (e.g., "Create file X", "Add import", "Export from X" → "Create and wire up file X")
+- **Missing verification:** Each task should state how to prove it's done.
+  (e.g., not "Add tests" but "Add tests — `npm test` passes with zero failures")
+
+**Actions:**
+
+- Large tasks → propose breakdown, ask user to confirm or adjust.
+- Small coupled tasks → propose condensing, ask user to confirm.
+- No tasks given → propose a breakdown from the goal, ask for confirmation.
+- Multiple valid splits → use `AskUserQuestion` to let the user choose.
+
+
+### Step 3: Discover Constraints
+
+Missing constraints are the #1 cause of agents going off-script.
+
+**If no constraints provided, ask across these categories:**
+
+- **Tools and frameworks:** Specific tools to use? (`uv`, `pnpm` vs `npm`, etc.)
+- **Off-limits files or code:** Files or modules the agent should not touch?
+- **References to include:** Docs, specs, or examples the agent should read first?
+- **Research to do or avoid:** Should the agent research before starting? Avoid web searches?
+- **Conventions:** Coding conventions, naming patterns, commit message styles?
+- **Existing tests:** Must all existing tests continue to pass?
+
+**If constraints are provided:** review for completeness — are there obvious gaps
+given the goal and tasks?
+
+Use `AskUserQuestion` with constraint categories as options if the user isn't sure
+what to specify.
+
+
+### Step 4: Define "Done"
+
+The definition of done makes completion unambiguous.
+
+**Evaluate:**
+
+- Is it concrete and verifiable? Does it name commands to run? (e.g., `npm test`, `uv run pytest -v`)
+- Is it subjective? ("the code works" is not a definition of done)
+
+**Actions:**
+
+- Missing → ask: "What tells you this is finished? What commands should pass?"
+- Vague or subjective → ask for specific commands, expected output, observable behaviors.
+- References quality checks → confirm they match what will go in `ralph.config.yml`.
+- Propose a definition based on the tasks and constraints, ask user to confirm.
+
+
+---
+
+
 ## Anti-Patterns
 
 ### Too Vague

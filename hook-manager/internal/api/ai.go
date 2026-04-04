@@ -514,8 +514,14 @@ func (a *API) GenerateAI(w http.ResponseWriter, r *http.Request) {
 		fullPrompt = buildScriptPrompt(req)
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
+
+	model := req.Model
+	if model == "" {
+		model = "sonnet"
+	}
+	a.logger.Info(fmt.Sprintf("ai generate started: mode=%s model=%s file=%s", req.Mode, model, req.Filename))
 
 	// Pipe prompt via stdin to avoid ARG_MAX limits on long prompts
 	args := []string{"--output-format", "text"}
@@ -526,16 +532,32 @@ func (a *API) GenerateAI(w http.ResponseWriter, r *http.Request) {
 	}
 	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Stdin = strings.NewReader(fullPrompt)
+	start := time.Now()
 	output, err := cmd.Output()
+	elapsed := time.Since(start)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			errMsg := fmt.Sprintf("generation timed out after %s", elapsed.Truncate(time.Second))
+			a.logger.Error(fmt.Sprintf("ai generate timeout: %s (%s)", req.Filename, elapsed.Truncate(time.Second)))
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(aiResponse{Error: errMsg})
+			return
+		}
+		if ctx.Err() == context.Canceled {
+			a.logger.Warn(fmt.Sprintf("ai generate cancelled: %s (%s)", req.Filename, elapsed.Truncate(time.Second)))
+			return
+		}
 		errMsg := fmt.Sprintf("claude command failed: %v", err)
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			errMsg = fmt.Sprintf("claude failed (exit %d): %s", exitErr.ExitCode(), string(exitErr.Stderr))
 		}
+		a.logger.Error(fmt.Sprintf("ai generate error: %s — %s", req.Filename, errMsg))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(aiResponse{Error: errMsg})
 		return
 	}
+
+	a.logger.Info(fmt.Sprintf("ai generate completed: %s (%s, %d bytes)", req.Filename, elapsed.Truncate(time.Second), len(output)))
 
 	content := strings.TrimSpace(string(output))
 	if req.Mode == "test" {

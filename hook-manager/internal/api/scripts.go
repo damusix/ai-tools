@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/damusix/hook-manager/internal/executor"
+	"github.com/damusix/hook-manager/internal/logger"
 )
 
 // ScriptInfo is returned by GET /api/scripts — filename + description.
@@ -241,9 +242,35 @@ func (a *API) TestScript(w http.ResponseWriter, r *http.Request) {
 		Timeout:    10 * time.Second,
 	})
 	if err != nil {
+		a.logger.Log(logger.Entry{
+			Category: "hook",
+			Level:    "error",
+			Event:    "test",
+			Hook:     path,
+			Message:  "execution error: " + err.Error(),
+		})
 		http.Error(w, "execution error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Log all test runs so failures are visible on the logs page
+	stdoutPreview := string(result.Stdout)
+	if len(stdoutPreview) > 200 {
+		stdoutPreview = stdoutPreview[:200]
+	}
+	level := "info"
+	if result.TimedOut || result.ExitCode != 0 {
+		level = "error"
+	}
+	a.logger.Log(logger.Entry{
+		Event:         "test",
+		Hook:          path,
+		ExitCode:      result.ExitCode,
+		DurationMs:    result.Duration.Milliseconds(),
+		StdoutPreview: stdoutPreview,
+		Stderr:        string(result.Stderr),
+		Level:         level,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
