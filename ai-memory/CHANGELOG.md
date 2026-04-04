@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0
+
+### Features
+
+- **add deleted memories sidebar, distillation controls, and modal wiring** [#47cf6b9](https://github.com/damusix/ai-tools/commit/47cf6b91f42f196ca2d9714382fc200d5f557e35)
+- **add deleted mode to MemoryDetailModal** [#2f5b2c8](https://github.com/damusix/ai-tools/commit/2f5b2c8a96726437983231d7ac3ac726bce9781d)
+- **add API endpoints and SSE event** [#5003f51](https://github.com/damusix/ai-tools/commit/5003f51b5a5ea65328a12db259ca80593c508d5d)
+- **add settings section to dashboard** [#e28f33a](https://github.com/damusix/ai-tools/commit/e28f33a8c628df97a567d8c8dd14c5a15257e015)
+- **add deleted memories help topic** [#2ac786f](https://github.com/damusix/ai-tools/commit/2ac786ffd61b332b9994bd7411d9689833559edd)
+- **add restoreMemory, listDeletedMemories, distillation columns in listProjects** [#b983f32](https://github.com/damusix/ai-tools/commit/b983f32ee9940679c0730015f14524c43b0b77cc)
 ## 1.4.0
 
 ### Features
