@@ -469,7 +469,8 @@ export function listProjects(): any[] {
             p.git_root, p.git_url, p.consolidate,
             p.distillation_at, p.distillation_memories_since, p.distillation_status, p.distillation_error,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
-            (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
+            (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count,
+            EXISTS(SELECT 1 FROM distillation_queue WHERE project_id = p.id AND status IN ('pending','processing')) as distillation_queued
         FROM projects p
         WHERE p.path = '_global'
            OR EXISTS (SELECT 1 FROM memories WHERE project_id = p.id)

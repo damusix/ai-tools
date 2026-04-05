@@ -56,6 +56,7 @@ export type Project = {
     distillation_memories_since: number;
     distillation_status: string;
     distillation_error: string;
+    distillation_queued: number;
     created_at: string;
     observation_count: number;
     memory_count: number;
@@ -1247,19 +1248,17 @@ const App: Component = () => {
                                                                 <div class="flex items-center gap-2">
                                                                     <span class="text-[10px] text-neutral-500">Distillation:</span>
                                                                     <InfoBtn topic="deleted-memories" hint="Review memories against codebase for staleness. Flagged memories are hidden and purged after the grace period." />
-                                                                    <button
-                                                                        class={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                                                                            distilling()[proj.path]
-                                                                                ? 'text-neutral-600 cursor-not-allowed'
-                                                                                : 'border border-purple-400/20 text-purple-400 hover:bg-purple-400/10'
-                                                                        }`}
-                                                                        disabled={distilling()[proj.path]}
-                                                                        onClick={() => triggerDistillation(proj.id, proj.path)}
-                                                                    >
-                                                                        {distilling()[proj.path] ? 'Distilling...' : 'Run Now'}
-                                                                    </button>
+                                                                    {(distilling()[proj.path] || proj.distillation_queued)
+                                                                        ? <span class="text-[10px] text-purple-400">Distilling...</span>
+                                                                        : <button
+                                                                            class="text-[10px] px-1.5 py-0.5 rounded transition-colors border border-purple-400/20 text-purple-400 hover:bg-purple-400/10"
+                                                                            onClick={() => triggerDistillation(proj.id, proj.path)}
+                                                                        >
+                                                                            Run Now
+                                                                        </button>
+                                                                    }
                                                                     <span class={`text-[10px] ${proj.distillation_status === 'failed' ? 'text-red-400' : 'text-neutral-600'}`}>
-                                                                        {distilling()[proj.path]
+                                                                        {(distilling()[proj.path] || proj.distillation_queued)
                                                                             ? ''
                                                                             : proj.distillation_status === 'failed'
                                                                                 ? `Failed: ${proj.distillation_error || 'unknown error'}`
