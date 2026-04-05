@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.3
+
+### Features
+
+- **recover orphaned jobs on restart, add cancel button** [#65e2d3e](https://github.com/damusix/ai-tools/commit/65e2d3eacc4f8a99563cfe3bbf390c0d93ea0f01)
+  - Reset 'processing' distillation jobs to 'pending' on worker startup
+  - Add DELETE /api/projects/:id/distillation endpoint to cancel jobs
+  - Show ✕ cancel button next to "Distilling..." in the dashboard
+### Bug Fixes
+
+- **replace Run Now with status when distillation is queued** [#4cc5d44](https://github.com/damusix/ai-tools/commit/4cc5d4441e7d3b9655ed349ab84db95c852f90f1)
+  Query distillation_queue for pending/processing entries per project.
+  Show "Distilling..." instead of the button when a job is active,
+  preventing double-enqueue from the UI.
 ## 1.5.2
 
 ### Bug Fixes
