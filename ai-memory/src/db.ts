@@ -334,6 +334,7 @@ export function deleteProject(projectId: number): { memories: number; observatio
 
         db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(projectId);
         db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM distillation_queue WHERE project_id = ?').run(projectId);
         db.prepare('DELETE FROM memories WHERE project_id = ?').run(projectId);
         db.prepare('DELETE FROM observations WHERE project_id = ?').run(projectId);
         db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
@@ -448,6 +449,7 @@ export function consolidateProject(
         db.prepare('UPDATE observations SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
         db.prepare('UPDATE observation_queue SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
         db.prepare('UPDATE memory_queue SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
+        db.prepare('UPDATE distillation_queue SET project_id = ? WHERE project_id = ?').run(targetId, sourceId);
 
         const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(targetId) as any).c;
         const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(targetId) as any).c;
@@ -469,7 +471,7 @@ export function listProjects(): any[] {
             p.git_root, p.git_url, p.consolidate,
             p.distillation_at, p.distillation_memories_since, p.distillation_status, p.distillation_error,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
-            (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count,
+            (SELECT COUNT(*) FROM memories WHERE project_id = p.id AND deleted_at = '') as memory_count,
             EXISTS(SELECT 1 FROM distillation_queue WHERE project_id = p.id AND status IN ('pending','processing')) as distillation_queued
         FROM projects p
         WHERE p.path = '_global'
@@ -799,7 +801,7 @@ export function getStats(projectPath?: string): { memories: number; observations
     if (projectPath) {
         const row = db.prepare(`
             SELECT
-                (SELECT COUNT(*) FROM memories m JOIN projects p ON m.project_id = p.id WHERE p.path = ? OR p.path = '_global') as memories,
+                (SELECT COUNT(*) FROM memories m JOIN projects p ON m.project_id = p.id WHERE (p.path = ? OR p.path = '_global') AND m.deleted_at = '') as memories,
                 (SELECT COUNT(*) FROM observations o JOIN projects p ON o.project_id = p.id WHERE p.path = ? OR p.path = '_global') as observations
         `).get(projectPath, projectPath) as any;
         return { memories: row.memories, observations: row.observations };
@@ -807,7 +809,7 @@ export function getStats(projectPath?: string): { memories: number; observations
 
     const row = db.prepare(`
         SELECT
-            (SELECT COUNT(*) FROM memories) as memories,
+            (SELECT COUNT(*) FROM memories WHERE deleted_at = '') as memories,
             (SELECT COUNT(*) FROM observations) as observations
     `).get() as any;
     return { memories: row.memories, observations: row.observations };
@@ -820,7 +822,7 @@ export function listDomains(projectPath?: string): { name: string; description: 
     let sql = `
         SELECT d.name, d.description, d.icon, COUNT(m.id) as count
         FROM domains d
-        LEFT JOIN memories m ON m.domain = d.name
+        LEFT JOIN memories m ON m.domain = d.name AND m.deleted_at = ''
     `;
     const params: any[] = [];
 
@@ -883,7 +885,7 @@ export function listCategories(projectPath?: string): { name: string; descriptio
     let sql = `
         SELECT c.name, c.description, c.icon, COUNT(m.id) as count
         FROM categories c
-        LEFT JOIN memories m ON m.category = c.name
+        LEFT JOIN memories m ON m.category = c.name AND m.deleted_at = ''
     `;
     const params: any[] = [];
 
@@ -1232,6 +1234,7 @@ export function deleteEmptyProjects(minAgeHours = 3): number {
         for (const { id } of candidates) {
             db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(id);
             db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM distillation_queue WHERE project_id = ?').run(id);
             db.prepare('DELETE FROM projects WHERE id = ?').run(id);
         }
 
@@ -1258,6 +1261,7 @@ export function batchDeleteProjects(ids: number[]): { totalMemories: number; tot
 
             db.prepare('DELETE FROM observation_queue WHERE project_id = ?').run(id);
             db.prepare('DELETE FROM memory_queue WHERE project_id = ?').run(id);
+            db.prepare('DELETE FROM distillation_queue WHERE project_id = ?').run(id);
             db.prepare('DELETE FROM memories WHERE project_id = ?').run(id);
             db.prepare('DELETE FROM observations WHERE project_id = ?').run(id);
             db.prepare('DELETE FROM projects WHERE id = ?').run(id);
@@ -1299,6 +1303,7 @@ export function transferProject(fromPath: string, toPath: string): { memories: n
         db.prepare('UPDATE observations SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
         db.prepare('UPDATE observation_queue SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
         db.prepare('UPDATE memory_queue SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
+        db.prepare('UPDATE distillation_queue SET project_id = ? WHERE project_id = ?').run(target.id, source.id);
 
         const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE project_id = ?').get(target.id) as any).c;
         const obsCount = (db.prepare('SELECT COUNT(*) as c FROM observations WHERE project_id = ?').get(target.id) as any).c;

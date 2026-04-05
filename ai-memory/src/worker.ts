@@ -158,7 +158,7 @@ export function startWorker(): void {
     // One-time backfill of unassigned memories
     setTimeout(async () => {
         const db = getDb();
-        const count = (db.prepare('SELECT COUNT(*) as c FROM memories WHERE domain IS NULL').get() as any).c;
+        const count = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE domain IS NULL AND deleted_at = ''").get() as any).c;
         if (count > 0) {
             log('worker', `Found ${count} memories without domain, starting backfill...`);
             const maxIter = getConfig().worker.maxBackfillIterations;
@@ -462,11 +462,11 @@ async function enrichProjects(): Promise<void> {
     const db = getDb();
     const candidates = db.prepare(`
         SELECT p.id, p.path, p.icon, p.description,
-            (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as mem_count
+            (SELECT COUNT(*) FROM memories WHERE project_id = p.id AND deleted_at = '') as mem_count
         FROM projects p
         WHERE p.path != '_global'
           AND p.description = ''
-          AND (SELECT COUNT(*) FROM memories WHERE project_id = p.id) >= 5
+          AND (SELECT COUNT(*) FROM memories WHERE project_id = p.id AND deleted_at = '') >= 5
     `).all() as { id: number; path: string; mem_count: number }[];
 
     for (const proj of candidates) {
