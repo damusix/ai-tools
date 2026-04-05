@@ -1,6 +1,6 @@
 {
     "name": "ai-memory",
-    "version": "1.5.4",
+    "version": "1.5.5",
     "description": "Persistent memory plugin for Claude Code",
     "type": "module",
     "main": "dist/server.js",

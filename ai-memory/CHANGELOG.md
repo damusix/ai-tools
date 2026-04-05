@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.5
+
+### Bug Fixes
+
+- **move /api/memories/deleted route before :id param routes** [#d22cc31](https://github.com/damusix/ai-tools/commit/d22cc31d1e2a1b27d854904fcc2e92219875c0ba)
+  Hono matched /api/memories/deleted as /api/memories/:id with id="deleted",
+  returning "Invalid memory ID". Fixed by registering the /deleted and
+  /:id/restore routes before the /:id wildcard routes.
 ## 1.5.4
 
 ### Bug Fixes
