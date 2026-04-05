@@ -9,7 +9,7 @@
     "plugins": [
         {
             "name": "ai-memory",
-            "version": "1.5.3",
+            "version": "1.5.4",
             "source": "./ai-memory",
             "description": "Persistent memory across Claude Code sessions",
             "author": {

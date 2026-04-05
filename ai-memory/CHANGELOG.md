@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.4
+
+### Bug Fixes
+
+- **exclude soft-deleted memories from all counts and queries** [#f100a75](https://github.com/damusix/ai-tools/commit/f100a75726583608d0907bdea9d2db018325c808)
+  Add deleted_at = '' filter to: listProjects memory_count, stats
+  endpoint, listDomains/listCategories JOIN counts, and worker
+  backfill/enrichment eligibility queries. Context builder and
+  search functions were already filtered.
 ## 1.5.3
 
 ### Features
