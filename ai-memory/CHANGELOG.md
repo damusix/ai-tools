@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.6
+
+### Bug Fixes
+
+- **broadcast distillation:updated on enqueue so UI updates immediately** [#79dcb99](https://github.com/damusix/ai-tools/commit/79dcb99ddedc30aa8c2b8df30122fe72ae7d8593)
 ## 1.5.5
 
 ### Bug Fixes
