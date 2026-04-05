@@ -40,6 +40,7 @@ import {
     setProjectConsolidate,
     checkDistillationEligibility,
     enqueueDistillation,
+    cancelDistillation,
     restoreMemory,
     listDeletedMemories,
 } from './db.js';
@@ -367,6 +368,14 @@ export function createApp(): Hono {
         enqueueDistillation(projectId);
         log('api', `Manual distillation triggered for project ${projectId}`);
         return c.json({ queued: true });
+    });
+
+    app.delete('/api/projects/:id/distillation', (c) => {
+        const projectId = parseInt(c.req.param('id'), 10);
+        cancelDistillation(projectId);
+        log('api', `Distillation cancelled for project ${projectId}`);
+        broadcast('distillation:updated', {});
+        return c.json({ cancelled: true });
     });
 
     app.delete('/api/observations/:id', (c) => {

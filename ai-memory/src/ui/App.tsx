@@ -284,6 +284,15 @@ const App: Component = () => {
         setDistilling(prev => ({ ...prev, [projectPath]: false }));
     };
 
+    const cancelDistillation = async (projectId: number) => {
+        try {
+            await fetch(`/api/projects/${projectId}/distillation`, { method: 'DELETE' });
+            showToast('Distillation cancelled');
+        } catch {
+            showToast('Failed to cancel distillation');
+        }
+    };
+
     const handleMemoryUpdate = async (id: number, fields: {
         content: string; tags: string; category: string; importance: number; domain: string | null;
     }) => {
@@ -1249,7 +1258,14 @@ const App: Component = () => {
                                                                     <span class="text-[10px] text-neutral-500">Distillation:</span>
                                                                     <InfoBtn topic="deleted-memories" hint="Review memories against codebase for staleness. Flagged memories are hidden and purged after the grace period." />
                                                                     {(distilling()[proj.path] || proj.distillation_queued)
-                                                                        ? <span class="text-[10px] text-purple-400">Distilling...</span>
+                                                                        ? <>
+                                                                            <span class="text-[10px] text-purple-400">Distilling...</span>
+                                                                            <button
+                                                                                class="text-[10px] px-1 text-neutral-600 hover:text-red-400 transition-colors"
+                                                                                onClick={() => cancelDistillation(proj.id)}
+                                                                                title="Cancel distillation"
+                                                                            >✕</button>
+                                                                        </>
                                                                         : <button
                                                                             class="text-[10px] px-1.5 py-0.5 rounded transition-colors border border-purple-400/20 text-purple-400 hover:bg-purple-400/10"
                                                                             onClick={() => triggerDistillation(proj.id, proj.path)}

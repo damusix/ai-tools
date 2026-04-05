@@ -1052,6 +1052,17 @@ export function completeDistillationQueue(id: number, status: 'done' | 'failed')
     db.prepare('UPDATE distillation_queue SET status = ? WHERE id = ?').run(status, id);
 }
 
+export function resetOrphanedDistillationJobs(): number {
+    const db = getDb();
+    const result = db.prepare("UPDATE distillation_queue SET status = 'pending' WHERE status = 'processing'").run();
+    return result.changes;
+}
+
+export function cancelDistillation(projectId: number): void {
+    const db = getDb();
+    db.prepare("DELETE FROM distillation_queue WHERE project_id = ? AND status IN ('pending','processing')").run(projectId);
+}
+
 // ── Soft-delete ────────────────────────────────────────────────
 
 export function softDeleteMemory(id: number, reason: string): void {

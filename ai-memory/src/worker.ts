@@ -27,6 +27,7 @@ import {
     updateProjectMeta,
     deleteEmptyProjects,
     getProjectArchitectureSummary,
+    resetOrphanedDistillationJobs,
 } from './db.js';
 import { broadcast } from './sse.js';
 import { log, error as logError } from './logger.js';
@@ -149,6 +150,10 @@ function checkStaleObservations(): void {
 
 export function startWorker(): void {
     log('worker', `Starting queue worker (poll every ${getConfig().worker.pollIntervalMs}ms)`);
+
+    // Recover any distillation jobs orphaned by a server restart
+    const recovered = resetOrphanedDistillationJobs();
+    if (recovered > 0) log('worker', `Recovered ${recovered} orphaned distillation job(s)`);
 
     // One-time backfill of unassigned memories
     setTimeout(async () => {
