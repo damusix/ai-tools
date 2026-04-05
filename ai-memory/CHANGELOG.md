@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.2
+
+### Bug Fixes
+
+- **use Sonnet model, Zod validation, retries, and failure status** [#a116dd8](https://github.com/damusix/ai-tools/commit/a116dd86e20a9a1cef7a4bca52b93798a50fa00a)
+  - Switch from Haiku to Sonnet for reliable raw JSON output
+  - Replace regex extraction with JSON.parse + Zod safeParse
+  - Add configurable retry loop (maxRetries, default 2)
+  - Store distillation_status and distillation_error on projects table
+  - Show failure reason in red in dashboard distillation controls
+  - Strengthen prompt to enforce raw JSON (no code fences)
 ## 1.5.1
 
 ### Features
