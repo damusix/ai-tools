@@ -70,6 +70,7 @@ describe('config', () => {
                 minMemoriesSince: 5,
                 batchSize: 50,
                 purgeAfterHours: 168,
+                maxRetries: 2,
             });
         });
 

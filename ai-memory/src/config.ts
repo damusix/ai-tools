@@ -66,6 +66,7 @@ const distillationSchema = z.object({
     minMemoriesSince: z.number().min(1).default(5),
     batchSize: z.number().min(1).default(50),
     purgeAfterHours: z.number().min(1).default(168),
+    maxRetries: z.number().min(0).default(2),
 });
 
 export const configSchema = z.object({

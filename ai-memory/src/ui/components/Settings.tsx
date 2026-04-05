@@ -62,6 +62,7 @@ const sections: Section[] = [
             { key: 'minMemoriesSince', label: 'Min Memories Since', fallback: 5, desc: 'new memories before distillation triggers' },
             { key: 'batchSize', label: 'Batch Size', fallback: 50, desc: 'memories per LLM call (per domain)' },
             { key: 'purgeAfterHours', label: 'Purge After (Hours)', fallback: 168, desc: 'hours before deleted memories are permanently removed' },
+            { key: 'maxRetries', label: 'Max Retries', fallback: 2, desc: 'retry attempts per batch on parse failure' },
         ],
     },
 ];

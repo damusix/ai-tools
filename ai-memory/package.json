@@ -42,6 +42,7 @@
         "zx": "8.8.5"
     },
     "devDependencies": {
+        "@anthropic-ai/sdk": "^0.82.0",
         "@tailwindcss/vite": "^4.2.1",
         "@types/better-sqlite3": "7.6.13",
         "@types/node": "25.3.0",

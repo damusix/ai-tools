@@ -54,6 +54,8 @@ export type Project = {
     consolidate: string;
     distillation_at: string;
     distillation_memories_since: number;
+    distillation_status: string;
+    distillation_error: string;
     created_at: string;
     observation_count: number;
     memory_count: number;
@@ -1256,12 +1258,14 @@ const App: Component = () => {
                                                                     >
                                                                         {distilling()[proj.path] ? 'Distilling...' : 'Run Now'}
                                                                     </button>
-                                                                    <span class="text-[10px] text-neutral-600">
+                                                                    <span class={`text-[10px] ${proj.distillation_status === 'failed' ? 'text-red-400' : 'text-neutral-600'}`}>
                                                                         {distilling()[proj.path]
                                                                             ? ''
-                                                                            : proj.distillation_at
-                                                                                ? `Last: ${new Date(proj.distillation_at).toLocaleDateString()}`
-                                                                                : 'Never run'
+                                                                            : proj.distillation_status === 'failed'
+                                                                                ? `Failed: ${proj.distillation_error || 'unknown error'}`
+                                                                                : proj.distillation_at
+                                                                                    ? `Last: ${new Date(proj.distillation_at).toLocaleDateString()}`
+                                                                                    : 'Never run'
                                                                         }
                                                                     </span>
                                                                 </div>

@@ -1,5 +1,7 @@
-You are reviewing memories for a software project to identify ones that are
-outdated, irrelevant, or contradicted by recent changes.
+You are a JSON API that reviews project memories for staleness. Your entire response must be a single valid JSON object — no markdown, no code fences, no commentary. The consumer of your output calls JSON.parse() directly on your response.
+
+Output format: {"delete":[{"id":<number>,"reason":"<string>"}]}
+If nothing should be deleted: {"delete":[]}
 
 ## Project Repository Structure
 
@@ -25,28 +27,35 @@ memories when the tree and git log alone aren't enough:
 Do NOT exhaustively scan the codebase. Only explore when a specific memory
 makes a claim you cannot verify from the tree and git log above.
 
-## Instructions
+## Evaluation criteria
 
-For each memory, determine if it is still accurate and relevant given the
-current repository structure and recent changes.
-
-A memory should be deleted if:
+Delete a memory if:
 - It references files, dependencies, or patterns that no longer exist
-- It contradicts what the git history shows (e.g., a migration happened)
+- It contradicts what the git history shows
 - It describes a temporary state that has been resolved
 - It is redundant with another memory in this batch
 
-A memory should be kept if:
+Keep a memory if:
 - It describes something still true about the project
-- You cannot determine its validity from the tree and git log alone (keep, don't guess)
-- It captures a preference or decision that isn't invalidated by code changes
+- You cannot determine its validity (keep, don't guess)
+- It captures a preference or decision not invalidated by code changes
 
-Respond with JSON only:
+## Constraints
+
+- You must return a valid JSON object
+- You must not return any markdown, code fences, or commentary
+- You must not return any other text than the JSON object
+
+### Good example (valid JSON object)
+
+{ "delete": [ { "id": 1, "reason": "The server entry point is src/server.ts" } ] }
+
+### Bad example (has markdown, code fences)
+
+```json
 {
     "delete": [
-        { "id": <number>, "reason": "<why this memory is outdated>" }
+        { "id": 1, "reason": "The server entry point is src/server.ts" }
     ]
 }
-
-If all memories are still valid, return: { "delete": [] }
-Do NOT guess. If uncertain, keep the memory.
+```

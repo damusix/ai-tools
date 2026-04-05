@@ -257,6 +257,13 @@ function initSchema(db: Database.Database): void {
         db.exec("ALTER TABLE projects ADD COLUMN distillation_memories_since INTEGER NOT NULL DEFAULT 0");
     }
 
+    if (!projectColNames['distillation_status']) {
+        db.exec("ALTER TABLE projects ADD COLUMN distillation_status TEXT NOT NULL DEFAULT ''");
+    }
+    if (!projectColNames['distillation_error']) {
+        db.exec("ALTER TABLE projects ADD COLUMN distillation_error TEXT NOT NULL DEFAULT ''");
+    }
+
     // Migration: soft-delete columns on memories
     const memoryCols = db.prepare("PRAGMA table_info('memories')").all() as { name: string }[];
     const memoryColNames: Record<string, true> = {};
@@ -460,7 +467,7 @@ export function listProjects(): any[] {
         SELECT p.id, p.path, p.name, p.icon, p.description, p.created_at, p.summary,
             p.architecture_summary, p.architecture_facts, p.architecture_full, p.architecture_scanned_at,
             p.git_root, p.git_url, p.consolidate,
-            p.distillation_at, p.distillation_memories_since,
+            p.distillation_at, p.distillation_memories_since, p.distillation_status, p.distillation_error,
             (SELECT COUNT(*) FROM observations WHERE project_id = p.id) as observation_count,
             (SELECT COUNT(*) FROM memories WHERE project_id = p.id) as memory_count
         FROM projects p
@@ -1101,11 +1108,11 @@ export function incrementDistillationMemoryCount(projectId: number): void {
         .run(projectId);
 }
 
-export function resetDistillationState(projectId: number): void {
+export function resetDistillationState(projectId: number, status: 'done' | 'failed' = 'done', error = ''): void {
     const db = getDb();
     const now = new Date().toISOString();
-    db.prepare('UPDATE projects SET distillation_at = ?, distillation_memories_since = 0 WHERE id = ?')
-        .run(now, projectId);
+    db.prepare('UPDATE projects SET distillation_at = ?, distillation_memories_since = 0, distillation_status = ?, distillation_error = ? WHERE id = ?')
+        .run(now, status, error, projectId);
 }
 
 export function checkDistillationEligibility(projectId: number): boolean {

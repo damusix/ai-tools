@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 import {
     dequeueDistillation,
     completeDistillationQueue,
@@ -15,8 +16,16 @@ import { getConfig } from './config.js';
 import { log, error as logError } from './logger.js';
 import { broadcast } from './sse.js';
 
+const distillResultSchema = z.object({
+    delete: z.array(z.object({
+        id: z.number(),
+        reason: z.string(),
+    })),
+});
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, 'prompts');
+
 
 function loadPrompt(name: string, vars: Record<string, string> = {}): string {
     let text = readFileSync(join(PROMPTS_DIR, `${name}.md`), 'utf-8');
@@ -59,44 +68,47 @@ async function distillBatch(
     gitLog: string,
     projectPath: string,
 ): Promise<{ id: number; reason: string }[]> {
-    try {
-        const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    const maxRetries = getConfig().distillation.maxRetries;
 
-        const memoriesJson = JSON.stringify(
-            memories.map(m => ({ id: m.id, content: m.content, category: m.category, created_at: m.created_at })),
-            null,
-            2,
-        );
+    const memoriesJson = JSON.stringify(
+        memories.map(m => ({ id: m.id, content: m.content, category: m.category, created_at: m.created_at })),
+        null,
+        2,
+    );
 
-        const prompt = loadPrompt('distill-memories', {
-            TREE: tree,
-            GIT_LOG: gitLog,
-            DOMAIN: domain,
-            MEMORIES: memoriesJson,
-        });
+    const prompt = loadPrompt('distill-memories', {
+        TREE: tree,
+        GIT_LOG: gitLog,
+        DOMAIN: domain,
+        MEMORIES: memoriesJson,
+    });
 
-        let result = '';
-        for await (const message of query({
-            prompt,
-            options: {
-                allowedTools: ['Read', 'Glob', 'Grep'],
-                permissionMode: 'bypassPermissions',
-                model: 'haiku',
-                workingDir: projectPath,
-            },
-        })) {
-            if ('result' in message) result = message.result as string;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            let result = '';
+            for await (const message of query({
+                prompt,
+                options: {
+                    allowedTools: ['Read', 'Glob', 'Grep'],
+                    permissionMode: 'bypassPermissions',
+                    model: 'sonnet',
+                    workingDir: projectPath,
+                },
+            })) {
+                if ('result' in message) result = message.result as string;
+            }
+
+            const parsed = distillResultSchema.safeParse(JSON.parse(result));
+            if (parsed.success) return parsed.data.delete;
+
+            logError('distillation', `Invalid response for domain "${domain}" (attempt ${attempt + 1}/${maxRetries + 1})`);
+        } catch (err) {
+            logError('distillation', `LLM batch failed for domain "${domain}" (attempt ${attempt + 1}/${maxRetries + 1}): ${err}`);
         }
-
-        const jsonMatch = result.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) return [];
-
-        const parsed = JSON.parse(jsonMatch[0]);
-        return Array.isArray(parsed.delete) ? parsed.delete : [];
-    } catch (err) {
-        logError('distillation', `LLM batch failed for domain "${domain}": ${err}`);
-        return [];
     }
+
+    return [];
 }
 
 export async function processDistillationQueue(): Promise<void> {
@@ -157,7 +169,10 @@ export async function processDistillationQueue(): Promise<void> {
         }
         log('distillation', `Distillation complete for ${projectPath}: soft-deleted ${totalDeleted} memories`);
     } catch (err) {
-        logError('distillation', `Distillation failed for queue item ${item.id}: ${err}`);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logError('distillation', `Distillation failed for queue item ${item.id}: ${errMsg}`);
+        resetDistillationState(item.project_id, 'failed', errMsg);
         completeDistillationQueue(item.id, 'failed');
+        broadcast('distillation:updated', {});
     }
 }
