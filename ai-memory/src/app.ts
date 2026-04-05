@@ -179,6 +179,20 @@ export function createApp(): Hono {
         return c.json(listMemories(project, tag, category, limit, domain));
     });
 
+    app.get('/api/memories/deleted', (c) => {
+        const project = c.req.query('project');
+        const limit = parseInt(c.req.query('limit') || '50', 10);
+        return c.json(listDeletedMemories(project, limit));
+    });
+
+    app.post('/api/memories/:id/restore', (c) => {
+        const id = parseInt(c.req.param('id'), 10);
+        restoreMemory(id);
+        broadcast('memory:created', {});
+        broadcast('counts:updated', {});
+        return c.json({ restored: true });
+    });
+
     app.delete('/api/memories/:id', (c) => {
         const id = parseInt(c.req.param('id'), 10);
         const deleted = deleteMemory(id);
@@ -347,20 +361,7 @@ export function createApp(): Hono {
         return c.json(db.prepare(sql).all(...params));
     });
 
-    // ── Deleted memories ─────────────────────────────────────────────
-    app.get('/api/memories/deleted', (c) => {
-        const project = c.req.query('project');
-        const limit = parseInt(c.req.query('limit') || '50', 10);
-        return c.json(listDeletedMemories(project, limit));
-    });
-
-    app.post('/api/memories/:id/restore', (c) => {
-        const id = parseInt(c.req.param('id'), 10);
-        restoreMemory(id);
-        broadcast('memory:created', {});
-        broadcast('counts:updated', {});
-        return c.json({ restored: true });
-    });
+    // (deleted memories and restore routes moved above :id routes)
 
     // ── Distillation trigger ─────────────────────────────────────────
     app.post('/api/projects/:id/distillation', (c) => {
