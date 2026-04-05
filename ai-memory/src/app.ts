@@ -105,6 +105,7 @@ export function createApp(): Hono {
         if (checkDistillationEligibility(project.id)) {
             enqueueDistillation(project.id);
             log('api', `Enqueued distillation for ${projectPath}`);
+            broadcast('distillation:updated', {});
         }
 
         return c.json({ queued: true, id });
@@ -368,6 +369,7 @@ export function createApp(): Hono {
         const projectId = parseInt(c.req.param('id'), 10);
         enqueueDistillation(projectId);
         log('api', `Manual distillation triggered for project ${projectId}`);
+        broadcast('distillation:updated', {});
         return c.json({ queued: true });
     });
 
