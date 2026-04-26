@@ -1,6 +1,0 @@
-{
-    "name": "hook-manager",
-    "version": "0.1.0",
-    "description": "Universal hook orchestrator with web UI — manage Claude Code hooks without writing plugins",
-    "author": { "name": "Danilo Alonso" }
-}
