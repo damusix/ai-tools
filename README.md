@@ -1,5 +1,8 @@
 # claude-marketplace
 
+> NOTE: This repo has been archived. `ai-memory` is better solved by wikis, ralph loop is solved by subagent orchestration, and the auto-approve is solved by auto-mode.
+> All of these solutions can be found in https://atomic.alonso.network and more.
+
 A monorepo for Claude Code plugins and standalone AI tooling. Install the marketplace for two practical plugins (persistent memory and safer Bash auto-approval), or use the standalone ralph-loop for autonomous multi-iteration coding.
 
 ## Quickstart
